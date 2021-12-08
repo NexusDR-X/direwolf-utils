@@ -15,7 +15,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.8.3
+#-    version         ${SCRIPT_NAME} 1.9.0
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -275,7 +275,10 @@ SCRIPT_HEADSIZE=$(grep -sn "^# END_OF_HEADER" ${0} | head -1 | cut -f1 -d:)
 VERSION="$(ScriptInfo version | grep version | tr -s ' ' | cut -d' ' -f 4)" 
 
 TITLE="Direwolf TNC Monitor and Configuration $VERSION"
-CONFIG_FILE="$HOME/direwolf_tnc.conf"
+CONFIG_DIR="$HOME/.config/dw_pat_gui"
+mkdir -p "$CONFIG_DIR"
+[[ -f "$HOME/direwolf_tnc.conf" ]] && mv "$HOME/direwolf_tnc.conf" "$CONFIG_DIR/"
+CONFIG_FILE="$CONFIG_DIR/direwolf_tnc.conf"
 MESSAGE="Direwolf Configuration"
 
 ID="${RANDOM}"
