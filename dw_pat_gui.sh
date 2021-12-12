@@ -275,8 +275,7 @@ SCRIPT_HEADSIZE=$(grep -sn "^# END_OF_HEADER" ${0} | head -1 | cut -f1 -d:)
 VERSION="$(ScriptInfo version | grep version | tr -s ' ' | cut -d' ' -f 4)" 
 
 TITLE="Direwolf TNC Monitor and Configuration $VERSION"
-CONFIG_DIR="$HOME/.config/dw_pat_gui"
-mkdir -p "$CONFIG_DIR"
+CONFIG_DIR="$HOME/.config/nexus"
 [[ -f "$HOME/direwolf_tnc.conf" ]] && mv "$HOME/direwolf_tnc.conf" "$CONFIG_DIR/"
 CONFIG_FILE="$CONFIG_DIR/direwolf_tnc.conf"
 MESSAGE="Direwolf Configuration"
