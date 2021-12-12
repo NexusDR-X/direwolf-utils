@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 2.2.0
+#-    version         ${SCRIPT_NAME} 2.3.0
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -596,7 +596,7 @@ SCRIPT_HEADSIZE=$(grep -sn "^# END_OF_HEADER" ${0} | head -1 | cut -f1 -d:)
 VERSION="$(ScriptInfo version | grep version | tr -s ' ' | cut -d' ' -f 4)" 
 
 TITLE="Direwolf APRS Manager $VERSION"
-CONFIG_DIR="$HOME/.config/dw_aprs_gui"
+CONFIG_DIR="$HOME/.config/nexus"
 mkdir -p "$CONFIG_DIR"
 [[ -f "$HOME/direwolf_aprs.conf" ]] && mv "$HOME/direwolf_aprs.conf" "$CONFIG_DIR/"
 CONFIG_FILE="$CONFIG_DIR/direwolf_aprs.conf"
