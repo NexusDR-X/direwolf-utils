@@ -1009,7 +1009,7 @@ do
   	#	--button="<b>Save &#x26; [Re]start Direwolf APRS</b>":0 
 	yad --title="$TITLE" \
   		--text-align="center" --notebook --key="$ID" --window-icon=logviewer \
-		--posx=$POSX --posy=$POSY --width=$WIDTH \
+		--geometry=0x0+${POSX}+${POSY} --width=$WIDTH \
   		--buttons-layout=center \
   		--tab="Direwolf Status" \
   		--tab="Configure APRS" \

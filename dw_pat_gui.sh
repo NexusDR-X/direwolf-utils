@@ -632,7 +632,7 @@ EOF
 	# Set up a notebook with the tabs.		
 	yad --title="Direwolf TNC and pat $VERSION" --text="<b><big>Direwolf TNC$AND_PAT Configuration and Operation</big></b>" \
   		--text-align="center" --notebook --key="$ID" \
-		--posx=10 --posy=50 \
+  		--geometry=0x0+10+50 \
   		--buttons-layout=center \
   		--tab="Monitor" \
   		--tab="Configure TNC" \
