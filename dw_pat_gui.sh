@@ -15,7 +15,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.9.0
+#-    version         ${SCRIPT_NAME} 1.9.1
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -108,7 +108,7 @@ function setTNCpatDefaults () {
    D[2]="1200" # Modem
    D[3]="null" # Audio capture interface (ADEVICE)
    D[4]="null" # Audio playback interface (ADEVICE)
-   D[5]="96000" # Audio playback rate (ARATE)
+   D[5]="48000" # Audio playback rate (ARATE)
    D[6]="GPIO 23" # GPIO PTT (BCM pin)
    D[7]="200" # TX Delay
 	D[8]="50" # TX Tail
@@ -124,13 +124,15 @@ function setTNCpatDefaults () {
 function loadSettings () {
 	 
 	MODEMs="300!1200!2400!4800!9600"
-   ARATEs="48000!96000"
+   #ARATEs="48000!96000"
+   ARATEs="48000"
    PTTs="GPIO 12!GPIO 23!RIG 2 localhost:4532"
 	DW_CONFIG="$TMPDIR/direwolf.conf"
 
 	if [ -s "$CONFIG_FILE" ]
 	then # There is a config file
    	echo "$CONFIG_FILE found." >&3
+  		sed -i -e "s/96000/48000/" "$CONFIG_FILE"
   		source "$CONFIG_FILE"
 	else # Set some default values in a new config file
    	echo -e "Config file $CONFIG_FILE not found.\nCreating a new one with default values." >&3
@@ -493,6 +495,7 @@ do
 		fi
 		# Start Direwolf
 		[[ ${F[_AUDIOSTATS_]} == 0 ]] || DIREWOLF+=" -a ${F[_AUDIOSTATS_]}"
+		cat "$DW_CONFIG"
 		$DIREWOLF -c $DW_CONFIG >&3 2>&3 &
 		direwolf_PID=$!
 		echo -e "\n\nDirewolf TNC has started.  PID=$direwolf_PID" >&3

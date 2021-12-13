@@ -125,7 +125,7 @@ function setDefaults () {
    D[11]="5" # Antenna gain in dB
    D[12]="null" # Audio capture interface (ADEVICE)
    D[13]="null" # Audio playback interface (ADEVICE)
-   D[14]="96000" # Audio playback rate (ARATE)
+   D[14]="48000" # Audio playback rate (ARATE)
    D[15]="GPIO 23" # GPIO PTT (BCM pin)
    D[16]="8001" #AGW Port
    D[17]="8011" # KISS Port
@@ -165,6 +165,7 @@ function loadSettings () {
 	DW_CONFIG="$TMPDIR/direwolf.conf"
 	if [ -s "$1" ]
 	then # There is a config file.  Load it.
+  		sed -i -e "s/96000/48000/" "$1"
 		source "$1"
 	else # If there is no config file, save the defaults to a new config file and load it
 		setDefaults
@@ -220,7 +221,8 @@ function loadSettings () {
    	F[_ADEVICE_PLAY_] = "null"
 	fi
 	# Generate sound card rates and selection
-	ARATEs="48000~96000"
+	#ARATEs="48000~96000"
+	ARATEs="48000"
    [[ $ARATEs =~ ${F[_ARATE_]} ]] && ARATEs="$(echo "$ARATEs" | sed "s/${F[_ARATE_]}/\^${F[_ARATE_]}/")"
 
 	# Generate PTT list and selection
