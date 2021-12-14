@@ -15,7 +15,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.9.1
+#-    version         ${SCRIPT_NAME} 1.9.2
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -117,7 +117,7 @@ function setTNCpatDefaults () {
    D[11]="60" # Audio Stats
    D[12]="8001" # AGW Port
    D[13]="8011"  # KISS Port
-   D[14]="FALSE" # Enable pat HTTP server
+   D[14]="TRUE" # Enable pat HTTP server
    D[15]="disabled" # Disable piano switch autostart
 }
 
@@ -131,11 +131,11 @@ function loadSettings () {
 
 	if [ -s "$CONFIG_FILE" ]
 	then # There is a config file
-   	echo "$CONFIG_FILE found." >&3
+   	echo "$CONFIG_FILE found." | ts "%Y/%m/%d %H:%M:%S" >&3
   		sed -i -e "s/96000/48000/" "$CONFIG_FILE"
   		source "$CONFIG_FILE"
 	else # Set some default values in a new config file
-   	echo -e "Config file $CONFIG_FILE not found.\nCreating a new one with default values." >&3
+   	echo "Config file $CONFIG_FILE not found. Creating one." | ts "%Y/%m/%d %H:%M:%S" >&3
 		setTNCpatDefaults
    	echo "declare -gA F" > "$CONFIG_FILE"
    	echo "F[_CALL_]='${D[1]}'" >> "$CONFIG_FILE"
@@ -230,7 +230,7 @@ function clearTextInfo () {
 	do
 		#echo -e "\nTIMESTAMP: $(date)" 
 		echo -e "\f"
-		echo "$(date) Cleared monitor window. Window is cleared every $TIMER."
+		echo "$(date) Cleared monitor window. Window is cleared every $TIMER."  | ts "%Y/%m/%d %H:%M:%S"
 	done >$PIPEDATA
 }
 
@@ -291,7 +291,9 @@ PAT_VERSION="$(pat version | cut -d' ' -f2)"
 
 RETURN_CODE=0
 # Direwolf does not allow embedded spaces in timestamp format string -T
-DIREWOLF="$(command -v direwolf) -p -t 0 -d u -T "%Y%m%dT%H:%M:%S""
+#DIREWOLF="$(command -v direwolf) -p -t 0 -d u -T "%Y%m%dT%H:%M:%S""
+DIREWOLF="$(command -v direwolf) -p -t 0 -d u"
+
 #PAT="$(command -v pat) --log /dev/stdout -l ax25,telnet http"
 PAT="$(command -v pat) -l ax25,telnet http"
 
@@ -473,9 +475,9 @@ do
 	# Start rigctld.  
 	if pgrep rigctld >/dev/null
 	then
-		echo "rigctld already running." >&3
+		echo "rigctld already running." | ts "%Y/%m/%d %H:%M:%S" >&3
 	else # Start rigctl as a dummy rig because we have no idea what rig is used.
-		echo "Starting rigctld using dummy rig..." >&3
+		echo "Starting rigctld using dummy rig..." | ts "%Y/%m/%d %H:%M:%S" >&3
 		$(command -v rigctld) -m 1 >&3 2>&3 &
 		RIG_PID=$!
 		echo "Done." >&3
@@ -496,9 +498,11 @@ do
 		# Start Direwolf
 		[[ ${F[_AUDIOSTATS_]} == 0 ]] || DIREWOLF+=" -a ${F[_AUDIOSTATS_]}"
 		cat "$DW_CONFIG"
-		$DIREWOLF -c $DW_CONFIG >&3 2>&3 &
-		direwolf_PID=$!
-		echo -e "\n\nDirewolf TNC has started.  PID=$direwolf_PID" >&3
+		#$DIREWOLF -c $DW_CONFIG >&3 2>&3 &
+		$DIREWOLF -c $DW_CONFIG | ts "%Y/%m/%d %H:%M:%S" >&3 2>&3 & 
+		direwolf_PID=$(pgrep -f "^$DIREWOLF -c $DW_CONFIG")
+		#echo -e "\n\nDirewolf TNC has started.  PID=$direwolf_PID" | ts "%Y/%m/%d %H:%M:%S" >&3
+		echo "Direwolf TNC has started.  PID=$direwolf_PID" | ts "%Y/%m/%d %H:%M:%S" >&3
 
 		# Wait for Direwolf to allocate a PTY
    	COUNTER=0
@@ -513,16 +517,17 @@ do
 		then
 			Die "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?"
 		fi
-   	echo "Direwolf has allocated a PTY." >&3
+   	echo "Direwolf has allocated a PTY." | ts "%Y/%m/%d %H:%M:%S" >&3
 
 		# Start kissattach on new PTY
-   	sudo $(command -v kissattach) $(readlink -f /tmp/kisstnc) $AX25PORT >&3 2>&1
-   	[ $? -eq 0 ] || Die "kissattach failed.  Aborting."
+   	sudo $(command -v kissattach) $(readlink -f /tmp/kisstnc) $AX25PORT | ts "%Y/%m/%d %H:%M:%S" >&3 2>&1
+   	[ ${PIPESTATUS[0]} -eq 0 ] || Die "kissattach failed.  Aborting."
 		KISSPARMS="-c 1 -p $AX25PORT -t $TXDELAY -l $TXTAIL -s $SLOTTIME -r $PERSIST -f n"
-		echo "Setting $(command -v kissparms) $KISSPARMS" >&3
+		echo "Setting $(command -v kissparms) $KISSPARMS" | ts "%Y/%m/%d %H:%M:%S" >&3
 		sleep 2
-   	sudo $(command -v kissparms) $KISSPARMS >&3 2>&3
-   	[ $? -eq 0 ] || Die "kissparms settings failed.  Aborting."
+   	#sudo $(command -v kissparms) $KISSPARMS >&3 2>&3
+   	sudo $(command -v kissparms) $KISSPARMS | ts "%Y/%m/%d %H:%M:%S" >&3 2>&3
+   	[ ${PIPESTATUS[0]} -eq 0 ] || Die "kissparms settings failed.  Aborting."
 
 		# Start pat
 		if [[ $PAT_START_HTTP == TRUE ]]
@@ -635,13 +640,12 @@ EOF
 	# Set up a notebook with the tabs.		
 	yad --title="Direwolf TNC and pat $VERSION" --text="<b><big>Direwolf TNC$AND_PAT Configuration and Operation</big></b>" \
   		--text-align="center" --notebook --key="$ID" \
-  		--geometry=0x0+10+50 \
+  		--geometry=800x600+10+50 \
   		--buttons-layout=center \
   		--tab="Monitor" \
   		--tab="Configure TNC" \
   		--tab="Configure pat" \
   		--tab="Rig Control" \
-		--width="800" --height="600" \
   		--button="<b>Stop Direwolf$AND_PAT &#x26; Exit</b>":1 \
   		--button="<b>Save Settings &#x26; Restart Direwolf$AND_PAT</b>":0 \
   		--button="<b>Open pat Web interface</b>":"bash -c $TMPDIR/pat_web.sh" \

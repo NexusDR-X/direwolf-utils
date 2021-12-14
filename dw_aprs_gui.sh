@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 2.3.0
+#-    version         ${SCRIPT_NAME} 2.3.1
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -370,7 +370,7 @@ function clearTextInfo () {
 	do
 		#echo -e "\nTIMESTAMP: $(date)" 
 		echo -e "\f"
-		echo "$(date) Cleared monitor window. Window is cleared every $TIMER."
+		echo "$(date) Cleared monitor window. Window is cleared every $TIMER." | ts "%Y/%m/%d %H:%M:%S"
 	done >$PIPEDATA
 }
 
@@ -379,9 +379,9 @@ function killDirewolf () {
    if pgrep ^direwolf | grep -q $1 2>/dev/null
 	then
 		kill $1 >/dev/null 2>&1
-		echo -e "\n\nDirewolf stopped.  Click \"Save & [Re]start...\" button below to restart." >$PIPEDATA
+		echo "Direwolf stopped.  Click \"Save & [Re]start...\" button below to restart." | ts "%Y/%m/%d %H:%M:%S" >$PIPEDATA
 	else
-		echo -e "\n\nDirewolf was already stopped.  Click \"Save & [Re]start...\" button below to restart." >$PIPEDATA
+		echo "Direwolf was already stopped.  Click \"Save & [Re]start...\" button below to restart." | ts "%Y/%m/%d %H:%M:%S" >$PIPEDATA
 	fi
 }
 
@@ -632,7 +632,9 @@ TIME_FORMAT="%Y%m%dT%H:%M:%S"
 #DIREWOLF="$(command -v direwolf) -p -t 0 -d u"
 # No pty
 # Direwolf does not allow embedded spaces in timestamp format string -T
-DIREWOLF="$(command -v direwolf) -a $AUDIO_STATS_INTERVAL -d u -T "$TIME_FORMAT""
+#DIREWOLF="$(command -v direwolf) -a $AUDIO_STATS_INTERVAL -d u -T "$TIME_FORMAT""
+DIREWOLF="$(command -v direwolf) -a $AUDIO_STATS_INTERVAL -d u"
+
 RETURN_CODE=0
 PIPE=$TMPDIR/pipe
 mkfifo $PIPE
@@ -819,11 +821,11 @@ do
 				RUN_OK=false
 			else
 				cp "${F[_CUSTOM_]}" $DW_CONFIG
-				echo "Using Custom Direwolf configuration in ${F[_CUSTOM_]}:" >&6
+				echo "Using Custom Direwolf configuration in ${F[_CUSTOM_]}:" | ts "%Y/%m/%d %H:%M:%S" >&6
 				RUN_OK=true
 			fi
 		else # Non-custom APRS mode requested.
-			echo "Using Direwolf configuration in $DW_CONFIG:" >&6
+			echo "Using Direwolf configuration in $DW_CONFIG:" | ts "%Y/%m/%d %H:%M:%S" >&6
 			RUN_OK=true
 		fi
 
@@ -857,40 +859,40 @@ do
 					DW_LOG="-L ${F[_LOGFILE_]}"
 				else
 					DW_LOG=""
-					echo -e "\nUnable to create/write to ${F[_LOGFILE_]}. Logging disabled." >&6
+					echo "Unable to create/write to ${F[_LOGFILE_]}. Logging disabled." | ts "%Y/%m/%d %H:%M:%S" >&6
 				fi					
 			fi
-			($DIREWOLF -t ${F[_COLORS_]} -c $DW_CONFIG $DW_LOG 2>&6 | socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast) &
+			($DIREWOLF -t ${F[_COLORS_]} -c $DW_CONFIG $DW_LOG | ts "%Y/%m/%d %H:%M:%S" 2>&6 | socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast) &
 			direwolf_PID=$(pgrep -f "^$DIREWOLF -t ${F[_COLORS_]} -c $DW_CONFIG")
 			socat_PID=$(pgrep -f "socat udp-recv:$SOCAT_PORT,reuseaddr -")
 			if [[ $direwolf_PID == "" ]]
 			then
-				echo -e "\nDirewolf was *NOT* started" >&6
+				echo "Direwolf was *NOT* started" | ts "%Y/%m/%d %H:%M:%S" >&6
 			else
-				echo -e "\nDirewolf configured as APRS $MODE_MESSAGE mode has started. PID=$direwolf_PID" >&6
+				echo "Direwolf configured as APRS $MODE_MESSAGE mode has started. PID=$direwolf_PID" | ts "%Y/%m/%d %H:%M:%S" >&6
 				if [[ ! ${F[_APRSMODE_]} =~ ^Custom ]]
 				then
-					echo -e "Direwolf listening on port ${F[_KISSPORT_]} for KISS connections." >&6
-					echo -e "Direwolf listening on port ${F[_AGWPORT_]} for AGW connections." >&6
+					echo "Direwolf listening on port ${F[_KISSPORT_]} for KISS connections." | ts "%Y/%m/%d %H:%M:%S" >&6
+					echo "Direwolf listening on port ${F[_AGWPORT_]} for AGW connections." | ts "%Y/%m/%d %H:%M:%S" >&6
 				fi
 				#KISSUTIL="$(command -v kissutil) -o $RECEIVED_MESSAGES_PATH -f $MSGPATH -h 127.0.0.1 -p ${F[_KISSPORT_]}"
 				KISSUTIL="$(command -v kissutil) -f $MSGPATH -h 127.0.0.1 -p ${F[_KISSPORT_]}"
-				echo -e "Starting $KISSUTIL" >&6
+				echo "Starting $KISSUTIL" | ts "%Y/%m/%d %H:%M:%S" >&6
 				let COUNT=0
 				while [[ -z $kissutil_PID ]]
 				do
 					sleep 1
-					$KISSUTIL >&6 &
+					$KISSUTIL | ts "%Y/%m/%d %H:%M:%S" >&6 &
 					kissutil_PID=$(pgrep -f "^$KISSUTIL")
 					((COUNT++))
 					(( $COUNT > 5 )) && break
 				done
-				[[ -z $kissutil_PID ]] && echo -e "\nkissutil did not start!" >&6 || echo -e "\nkissutil running. PID=$kissutil_PID" >&6
+				[[ -z $kissutil_PID ]] && (echo "kissutil did not start!" | ts "%Y/%m/%d %H:%M:%S" >&6) || echo "kissutil running. PID=$kissutil_PID" | ts "%Y/%m/%d %H:%M:%S" >&6
 				#echo "Received messages are in $RECEIVED_MESSAGES_PATH" >&6
 			fi
 			if [[ $socat_PID != "" ]]
 			then
-				echo -e "\nExternal '$MONITOR_TITLE' running. PID=$socat_PID" >&6
+				echo "External '$MONITOR_TITLE' running. PID=$socat_PID" | ts "%Y/%m/%d %H:%M:%S" >&6
 				# Position the monitor window so it's not under the configuration window
 				sleep 1
 				wmctrl -r "$MONITOR_TITLE" -e "0,$(($POSX + $WIDTH + 5)),$POSY,-1,-1"
@@ -1011,7 +1013,7 @@ do
   	#	--button="<b>Save &#x26; [Re]start Direwolf APRS</b>":0 
 	yad --title="$TITLE" \
   		--text-align="center" --notebook --key="$ID" --window-icon=logviewer \
-		--geometry=1000x750+${POSX}+${POSY} --width=$WIDTH \
+		--geometry=1000x750+${POSX}+${POSY} \
   		--buttons-layout=center \
   		--tab="Direwolf Status" \
   		--tab="Configure APRS" \
