@@ -18,7 +18,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.4.4
+#-    version         ${SCRIPT_NAME} 1.4.5
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -105,17 +105,17 @@ function processAlias () {
 	if jq -r '.connect_aliases | keys[] as $k | "\(.[$k])"' $PAT_CONFIG | grep -q "$URI"
 	then # Alias already present
 		yad --info --center --text-align=center --buttons-layout=center \
-			--text="$URI was already in aliases" --borders=20 --button="gtk-ok":0
+			--text="$URI was already in aliases" --borders=20 --button="OK":0
 	else # Alias not in list.  Add it.  Key (alias name) is of the form CALL.MODE@FREQ
 		cat $PAT_CONFIG | jq --arg K "$CALL.${URI%%:*}@$FREQ" --arg U "$URI" \
 			'.connect_aliases += {($K): $U}' | sponge $PAT_CONFIG
 		if [[ $? == 0 ]]
 		then
 			yad --info --center --text-align=center --buttons-layout=center \
-			--text="$URI was added to aliases" --borders=20 --button="gtk-ok":0
+			--text="$URI was added to aliases" --borders=20 --button="OK":0
 		else
 			yad --info --center --text-align=center --buttons-layout=center \
-			--text="ERROR: $URI was NOT added to aliases" --borders=20 --button="gtk-ok":0
+			--text="ERROR: $URI was NOT added to aliases" --borders=20 --button="OK":0
 		fi
 	fi
 }
@@ -283,7 +283,7 @@ connection alias list\n<span color='blue'>If you make changes: Restart pat + TNC
 	 --field="Band":CB "$BANDs" \
 	 --field="Mode":CB "$MODEs" \
 	 --field="Sort results by distance (Uncheck to sort by callsign)":CHK TRUE \
-	 --field="gtk-find":FBTN "$find_cmd" \
+	 --field="Find":FBTN "$find_cmd" \
 	 --field="<b>View/delete saved pat connection aliases</b>":FBTN "$view_remove_cmd &" >/dev/null &
 YAD_PIDs+=( $! )
 
@@ -294,7 +294,7 @@ yad --plug="$fkey" --tabnum=2 --list --grid-lines=hor --dclick-action="bash -c \
 	--search-column=2 --expand-column=7 --hide-column=1 <&4 >/dev/null &
 YAD_PIDs+=( $! )
 
-yad --paned --key="$fkey" --buttons-layout=center --button="gtk-close":0 --width=700 --height=700 \
+yad --paned --key="$fkey" --buttons-layout=center --button="Close":0 --width=700 --height=700 \
 	--title="$TITLE" --window-icon="system-search" 
 
 SafeExit
