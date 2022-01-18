@@ -15,7 +15,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.9.2
+#-    version         ${SCRIPT_NAME} 1.9.3
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -290,9 +290,6 @@ PAT_VERSION="$(pat version | cut -d' ' -f2)"
 [[ $PAT_VERSION =~ v0.1[01]. ]] && PAT_CONFIG="$HOME/.wl2k/config.json" || PAT_CONFIG="$HOME/.config/pat/config.json"
 
 RETURN_CODE=0
-# Direwolf does not allow embedded spaces in timestamp format string -T
-#DIREWOLF="$(command -v direwolf) -p -t 0 -d u -T "%Y%m%dT%H:%M:%S""
-DIREWOLF="$(command -v direwolf) -p -t 0 -d u"
 
 #PAT="$(command -v pat) --log /dev/stdout -l ax25,telnet http"
 PAT="$(command -v pat) -l ax25,telnet http"
@@ -496,8 +493,12 @@ do
 			echo "$AX25PORT	$MYCALL	0	255	7	Winlink" | sudo tee --append $AX25PORTFILE >/dev/null
 		fi
 		# Start Direwolf
-		[[ ${F[_AUDIOSTATS_]} == 0 ]] || DIREWOLF+=" -a ${F[_AUDIOSTATS_]}"
-		cat "$DW_CONFIG"
+		# Direwolf does not allow embedded spaces in timestamp format string -T
+		#DIREWOLF="$(command -v direwolf) -p -t 0 -d u -T "%Y%m%dT%H:%M:%S""
+		DIREWOLF="$(command -v direwolf) -p -t 0 -d u -a ${F[_AUDIOSTATS_]}"
+		echo -e "\nUsing Direwolf configuration:" >&3
+		cat "$DW_CONFIG" >&3
+		echo >&3
 		#$DIREWOLF -c $DW_CONFIG >&3 2>&3 &
 		$DIREWOLF -c $DW_CONFIG | ts "%Y/%m/%d %H:%M:%S" >&3 2>&3 & 
 		direwolf_PID=$(pgrep -f "^$DIREWOLF -c $DW_CONFIG")
