@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 2.3.1
+#-    version         ${SCRIPT_NAME} 2.3.2
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -626,7 +626,7 @@ WIDTH=1000
 
 # Other settings
 SOCAT_PORT=3333
-AUDIO_STATS_INTERVAL=120
+AUDIO_STATS_INTERVAL=0
 TIME_FORMAT="%Y%m%dT%H:%M:%S"
 # Have direwolf allocate a pty
 #DIREWOLF="$(command -v direwolf) -p -t 0 -d u"
