@@ -626,14 +626,16 @@ WIDTH=1000
 
 # Other settings
 SOCAT_PORT=3333
-AUDIO_STATS_INTERVAL=0
+#AUDIO_STATS_INTERVAL=120
+AUDIO_STATS_INTERVAL=''
 TIME_FORMAT="%Y%m%dT%H:%M:%S"
 # Have direwolf allocate a pty
 #DIREWOLF="$(command -v direwolf) -p -t 0 -d u"
 # No pty
 # Direwolf does not allow embedded spaces in timestamp format string -T
 #DIREWOLF="$(command -v direwolf) -a $AUDIO_STATS_INTERVAL -d u -T "$TIME_FORMAT""
-DIREWOLF="$(command -v direwolf) -a $AUDIO_STATS_INTERVAL -d u"
+DIREWOLF="$(command -v direwolf) -d u"
+[[ -n $AUDIO_STATS_INTERVAL ]] && DIREWOLF="$DIREWOLF -a $AUDIO_STATS_INTERVAL "
 
 RETURN_CODE=0
 PIPE=$TMPDIR/pipe
