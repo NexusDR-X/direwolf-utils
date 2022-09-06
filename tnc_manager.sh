@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 0.0.2
+#-    version         ${SCRIPT_NAME} 0.0.3
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -644,7 +644,7 @@ function yadPat () {
 			"$PAT_TELNET_PORT!8770..8779!1!"
 			"$PAT_TELNET_PASSWD"
 			"$PAT_AX25_BEACON_INTERVAL!0..7200!1!"
-			"$PAT_BEACON_MESSAGE"
+			"$PAT_AX25_BEACON_MESSAGE"
 			"$PAT_ARQ_BW_FORCED"
 			"$PAT_ARQ_BW_MAXs"
 			"$PAT_ARDOP_BEACON_INTERVAL!0..7200!1!"
