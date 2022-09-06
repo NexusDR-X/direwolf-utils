@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 0.0.1
+#-    version         ${SCRIPT_NAME} 0.0.2
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -351,7 +351,7 @@ function yadARDOP () {
    CMD=(	
 	yad --plug="$ID" --tabnum=$1
 		--text="<b><big><big>ARDOP Configuration</big></big></b>\n\n \
-<b><u><big>Typical Direwolf Sound Card and PTT Settings for Nexus DR-X</big></u></b>\n \
+<b><u><big>Typical ARDOP Sound Card and PTT Settings for Nexus DR-X</big></u></b>\n \
 <span color='blue'><b>LEFT Radio:</b></span> Use Audio \
 <b>fepi-capture-left</b> and <b>fepi-playback-left</b> and PTT <b>GPIO 12</b>.\n \
 <span color='blue'><b>RIGHT Radio:</b></span> Use Audio \
@@ -502,12 +502,12 @@ function yadDirewolf () {
    CMD=(
 		yad --plug="$ID" --tabnum=$1
 			--text="<b><big><big>Direwolf Configuration</big></big></b>\n\n \
-	<b><u><big>Typical Direwolf Sound Card and PTT Settings for Nexus DR-X</big></u></b>\n \
-	<span color='blue'><b>LEFT Radio:</b></span> Use ADEVICEs \
-	<b>fepi-capture-left</b> and <b>fepi-playback-left</b> and PTT <b>GPIO 12</b>.\n \
-	<span color='blue'><b>RIGHT Radio:</b></span> Use ADEVICEs \
-	<b>fepi-capture-right</b> and <b>fepi-playback-right</b> and PTT <b>GPIO 23</b>.\n\n \
-	Click the <b>Save...</b> button below after you make your changes.\n"
+<b><u><big>Typical Direwolf Sound Card and PTT Settings for Nexus DR-X</big></u></b>\n \
+<span color='blue'><b>LEFT Radio:</b></span> Use ADEVICEs \
+<b>fepi-capture-left</b> and <b>fepi-playback-left</b> and PTT <b>GPIO 12</b>.\n \
+<span color='blue'><b>RIGHT Radio:</b></span> Use ADEVICEs \
+<b>fepi-capture-right</b> and <b>fepi-playback-right</b> and PTT <b>GPIO 23</b>.\n\n \
+Click the <b>Save...</b> button below after you make your changes.\n"
 			--item-separator="!"
 			--separator="|"
 			--text-align=center
@@ -525,7 +525,7 @@ function yadDirewolf () {
 			--field="<b>Audio Stats interval (s)</b>":CB
 			--field="<b>AGW Port</b>":NUM
 			--field="<b>KISS Port</b>":NUM
-			--field="<b>Text colors (0=off)</b>":NUM
+			--field="<b>Text colors</b> (0=off)":NUM
 			--field="Optional <b>CDIGIPEAT</b> arguments\n(Format&#x3A; <b>0 0</b> [<i>aliases</i>])"
 			--field="Optional <b>CFILTER</b> arguments\n(Format&#x3A; <b>0 0</b> <i>filter-expression</i>)"
 			--
