@@ -124,8 +124,8 @@ function setTNCpatDefaults () {
 function loadSettings () {
 	 
 	MODEMs="300!1200!2400!4800!9600"
-   #ARATEs="48000!96000"
-   ARATEs="48000"
+   ARATEs="48000!96000"
+   #ARATEs="48000"
    PTTs="GPIO 12!GPIO 23!RIG 2 localhost:4532"
 	DW_CONFIG="$TMPDIR/direwolf.conf"
 

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=TNC Manager
+GenericName=ARDOP and Direwolf TNC and pat Manager
+Comment=Configure and monitor ARDOP,Direwolf and pat
+Exec=sh -c /usr/local/bin/tnc_manager.sh
+Icon=/usr/share/pixmaps/CQ.png
+Terminal=false
+Type=Application
+Categories=HamRadio;
+Comment[en_US]=Direwolf TNC and pat GUI
