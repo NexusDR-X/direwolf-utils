@@ -18,7 +18,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.4.5
+#-    version         ${SCRIPT_NAME} 1.5.0
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -102,17 +102,29 @@ function processAlias () {
 	local CALL="$(echo "$1" | sed 's/^ //' | cut -d' ' -f2)"
 	local URI="$(echo "$1" | sed 's/^ //' | sed -e 's/packet/ax25/' | cut -d' ' -f1)"
 	local FREQ="$(echo "$1" | sed 's/^ //' | sed -e 's/packet/ax25/' | cut -d' ' -f3)"
+	local ADD_IT=NO
 	if jq -r '.connect_aliases | keys[] as $k | "\(.[$k])"' $PAT_CONFIG | grep -q "$URI"
 	then # Alias already present
-		yad --info --center --text-align=center --buttons-layout=center \
-			--text="$URI was already in aliases" --borders=20 --button="OK":0
-	else # Alias not in list.  Add it.  Key (alias name) is of the form CALL.MODE@FREQ
-		cat $PAT_CONFIG | jq --arg K "$CALL.${URI%%:*}@$FREQ" --arg U "$URI" \
+#		yad --info --center --text-align=center --buttons-layout=center \
+#			--text="$URI was already in aliases" --borders=20 --button="OK":0
+		if yad --question --center --text-align=center \
+		 --text="\"<b>$URI</b>\" is already in aliases.\n\n<big><b>Add it anyway?</b></big>"
+		then
+			ADD_IT=DUPLICATE
+		fi
+	else 
+		ADD_IT=YES
+	fi
+	if [[ $ADD_IT != NO ]]
+	then
+		#Key (alias name) is of the form CALL.MODE@FREQ
+		[[ $ADD_IT == DUPLICATE ]] && KEY="$RANDOM $CALL.${URI%%:*}@$FREQ" || KEY="$CALL.${URI%%:*}@$FREQ"
+		cat $PAT_CONFIG | jq --arg K "$KEY" --arg U "$URI" \
 			'.connect_aliases += {($K): $U}' | sponge $PAT_CONFIG
 		if [[ $? == 0 ]]
 		then
 			yad --info --center --text-align=center --buttons-layout=center \
-			--text="$URI was added to aliases" --borders=20 --button="OK":0
+			--text="<b>$URI</b> was added to aliases\n and named \"<b>$KEY</b>\"" --borders=20 --button="OK":0
 		else
 			yad --info --center --text-align=center --buttons-layout=center \
 			--text="ERROR: $URI was NOT added to aliases" --borders=20 --button="OK":0
@@ -121,19 +133,60 @@ function processAlias () {
 }
 export -f processAlias
 
+function editAlias () {
+	RESULT="$(yad --form --height=150 --width=500 \
+		--field="Alias Name" "${2}" \
+		--field="Connect URI" "${3}")"
+	if [[ $? == 0 ]]
+	then
+		# Remove trailing | delimiters
+		VALUES="$(sed -e 's/|*$//' <<<$RESULT)"
+		ALIAS_NAME="${VALUES%%|*}"
+		CONNECT_URI="${VALUES#*|}"
+		if [[ -n $ALIAS_NAME && -n $CONNECT_URI ]] && [[ $2 != "$ALIAS_NAME" || $3 != "$CONNECT_URI" ]]
+		then
+			# Delete the current key value pair
+			cat $PAT_CONFIG | jq --arg K "$2" --arg V "$3" \
+				'(.connect_aliases | select(.[$K] == $V)) |= del (.[$K])' | sponge $PAT_CONFIG
+			# Add the new key value pair
+			cat $PAT_CONFIG | jq --arg K "$ALIAS_NAME" --arg U "$CONNECT_URI" \
+				'.connect_aliases += {($K): $U}' | sponge $PAT_CONFIG
+			if [[ $? == 0 ]]
+			then
+				echo "$1"
+				echo "$ALIAS_NAME"
+				echo "$CONNECT_URI"
+				yad --info --center --text-align=center --buttons-layout=center \
+				--text="Alias was modified" --borders=20 --button="OK":0
+			else
+				yad --info --center --text-align=center --buttons-layout=center \
+				--text="ERROR: Alias was not modified!" --borders=20 --button="OK":0
+			fi
+		fi
+	fi
+}
+export -f editAlias
+
 function viewDeleteAliases () {
 	# Load existing aliases
 	while true
 	do
 		# Read aliases from $PAT_CONFIG
-		ALIASES="$(jq -r .connect_aliases $PAT_CONFIG | egrep -v "telnet|{|}" | \
-				  sed 's/^ /FALSE|/' | tr -d ' ",' | sed 's/:/|/1' | tr '|' '\n')"
+#		ALIASES="$(jq -r .connect_aliases $PAT_CONFIG | egrep -v "telnet|{|}" | \
+#				  sed 's/^ /FALSE|/' | tr -d '| ",' | sed 's/:/|/1' | tr '|' '\n')"
+		ALIASES="$(jq -r .connect_aliases $PAT_CONFIG | egrep -v "^{|^}" | \
+		sed -e 's/^ /FALSE|/' \
+		-e 's/\": \"/|/' \
+		-e 's/| \"/|/' \
+		-e 's/\"[,]*$//' | tr '|' '\n')"
 		RESULT="$(yad --title="View/remove aliases" --list --mouse --borders=10 \
-				--height=400 --width=550 --text-align=center \
+				--height=400 --width=600 --text-align=center \
+				--dclick-action="$edit_alias_cmd" \
 				--text "<b>Your current pat connection aliases are listed below.</b>\n \
-Check the ones you want to remove.\n" \
-				--checklist --grid-lines=hor --auto-kill --column="Pick" --column="Call@Freq" --column="Connect URI" \
-				<<< "$ALIASES" --buttons-layout=center --button="Exit":1 --button="Refresh list":0 --button="Remove selected aliases":0)"
+<span color='blue'><b>Double-click on an alias to edit it.\n \
+Check the ones you want to remove.</b></span>\n" \
+				--checklist --grid-lines=hor --auto-kill --column="Pick" --column="Alias Name" --column="Connect URI" \
+<<< "$ALIASES" --buttons-layout=center --button="Exit":1 --button="Refresh list":0 --button="Remove selected aliases":0)"
 		if [[ $? == 0 ]]
 		then # Refresh or removal requested
       	while IFS="|" read -r CHK KEY VALUE REMAINDER
@@ -161,14 +214,15 @@ export -f viewDeleteAliases
 # Create temp directory with three random numbers and the process ID
 # in the name.  This directory is removed automatically at exit.
 # -----------------------------------
-TMPDIR="/tmp/${SCRIPT_NAME}.$RANDOM.$RANDOM.$RANDOM.$$"
-(umask 077 && mkdir "${TMPDIR}") || {
-  Die "Could not create temporary directory! Exiting."
-}
 
   #= general variables ==#
   #== general variables ==#
 SCRIPT_NAME="$(basename ${0})" # scriptname without path
+TMPDIR="/tmp/${SCRIPT_NAME}.$RANDOM.$RANDOM.$RANDOM.$$"
+(umask 077 && mkdir "${TMPDIR}") || {
+	Die "Could not create temporary directory! Exiting."
+}
+export TMPDIR
 SCRIPT_DIR="$( cd $(dirname "$0") && pwd )" # script directory
 SCRIPT_FULLPATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 SCRIPT_ID="$(ScriptInfo | grep script_id | tr -s ' ' | cut -d' ' -f3)"
@@ -180,6 +234,8 @@ PAT_VERSION="$(pat version | cut -d' ' -f2)"
 [[ $PAT_VERSION =~ v0.1[01]. ]] && PAT_CONFIG="$HOME/.wl2k/config.json" || PAT_CONFIG="$HOME/.config/pat/config.json"
 export PAT_CONFIG=$PAT_CONFIG
 export find_cmd='@bash -c "runFind %1 %2 %3 %4"'
+#export edit_alias_cmd='@bash -c "editAlias \"%s\""'
+export edit_alias_cmd='@bash -c "editAlias %s"'
 export view_remove_cmd='bash -c "viewDeleteAliases"'
 export fpipe=$(mktemp -u --tmpdir find.XXXXXXXX)
 mkfifo "$fpipe"
