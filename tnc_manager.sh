@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 0.0.3
+#-    version         ${SCRIPT_NAME} 0.0.4
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -59,13 +59,13 @@ function KillApps () {
 function TrapCleanup() {
    [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"
    kill $MANAGER_PID >/dev/null 2>&1
+	KillApps
 }
 
 function SafeExit() {
 	EXIT_CODE=${1:-0}
    trap - INT TERM EXIT SIGINT
 	TrapCleanup
-	KillApps
 	#kill $RIGCTLD_PID >/dev/null 2>&1
    rm -f $PIPE
    exit $EXIT_CODE
