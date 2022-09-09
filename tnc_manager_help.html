@@ -18,8 +18,15 @@ Upon starting, the Manager will open a terminal window that shows the output of 
 <hr>
 <h2>Table of Contents</h2>
 <a href="#mainbuttons">Buttons</a><br /><br />
-<a href="#startup">Startup tab</a><br />
+<a href="#startup">Startup tab</a><br /><br />
+<a href="#ardop">ARDOP tab</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardopaudio">Audio Capture and Playback</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardopptt">PTT</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardopport">Port</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardoparguments">piardopc arguments</a><br /><br />
 <a href="#ax25">AX25 tab</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ax25timers">AX25 Timers (TX delay, TX tail, Persist, Slot time)</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#defaultax25timers">Load Default AX25 Timers button</a><br /><br />
 <a href="#direwolftab">Direwolf tab</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#dwcall">Call Sign</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#adevice">Direwolf Capture/Playback ADEVICEs</a><br />
@@ -28,19 +35,21 @@ Upon starting, the Manager will open a terminal window that shows the output of 
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#stats">Audio Stats interval</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#agwport">AGW Port</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#agwport">KISS Port</a><br /><br />
-<a href="#monitor">Configure pat tab</a><br />
+<a href="#monitor">pat tab</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patcall">Call Sign</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#password">Winlink Password</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#grid">Locator Code</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#webport">Web Service Port</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#telnetport">Telnet Service Port</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#telnetpasswd">Telnet Service Password</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#beaconinterval">AX25 Beacon Interval</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#beaconmessage">AX25 Beacon Message</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#startpat">Start pat web service when Direwolf TNC starts</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ax25timers">AX25 Timers (TX delay, TX tail, Persist, Slot time)</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#defaultax25timers">Load Default AX25 Timers button</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#pataliases">Edit pat Connection aliases button</a><br /><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#beaconinterval">Packet Beacon Interval</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#beaconmessage">Packet Beacon Message</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopforcedarqbw">ARDOP Forced ARQ bandwidth</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopmaxarqbw">ARDOP Max ARQ bandwidth</a><br />	
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopbeaconinterval">ARDOP Beacon Interval</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopenablecwid">ARDOP: Enable CW ID</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopenableptt">ARDOP: pat controls PTT</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#pataliases">Edit pat Connection Aliases button</a><br /><br />
 <a href="#rigcontrol">Rig Control tab</a><br />
 <hr>
 <h2 id="mainbuttons">Buttons</h2>
@@ -62,11 +71,13 @@ Opens the default browser and connects it to pat's web service.
 <hr>
 <h2 id="startup">Startup tab</h2>
 <p>
-This tab has settings that enable you to control the behavior of the Manager when it starts. The Autostart setting will automatically start the manager using the Nexus DR-X DIP switch. Selecting anything but 'disabled' will create a script that will run if the corresponding Nexus DR-X switches are in the ON position. This will launch the Manager automatically with the Pi reboots.
+This tab has settings that enable you to control the behavior of the Manager when it starts. The Autostart setting will automatically start the manager using the Nexus DR-X DIP switches. Selecting anything but 'disabled' will create a script that will run if the corresponding Nexus DR-X switches are in the ON position. This will launch the Manager automatically with the Pi reboots.
 </p>
+The other items allow you to customize which programs start automatically whenever the Manger starts.
 <p>
 This tab displays the output of the Direwolf and pat programs. At the top of the pane are the currently configured AGW and KISS TCP ports, the AX.25 port, pat's telnet port and if pat is running, the URI you use to access the pat web interface.
 </p>
+<a href="#top">Top</a>
 <hr>
 
 <h2 id="ax25">AX25 tab</h2>
@@ -107,7 +118,7 @@ Clicking this button restores the default values for TX Delay, TX Tail, Persist 
 <p>Configuration parameters for ARDOP.
 </p>
 <a href="#top">Top</a>
-<h3>Audio Capture and Playback</h3>
+<h3 id="ardopaudio">Audio Capture and Playback</h3>
 <p>
 Sound card interface for capture and playback specific to the Nexus DR-X + Fe-Pi sound card. 
 </p>
@@ -145,17 +156,17 @@ Sound card interface for capture and playback specific to the Nexus DR-X + Fe-Pi
 If your rig has a built-in sound interface and the rig's USB cable is attached to the Pi, it should show up in the dropdown. For example, on ICOM 7100/7300 rigs, it shows up as <b>plughw:CARD=CODEC,DEV=0</b>. For those rigs, select that same device for both capture and playback.
 </p>
 <a href="#top">Top</a>
-<h3>PTT</h3>
+<h3 id="ardopptt">PTT</h3>
 <p>
 <code>piardopc</code> has limited PTT options. <b>GPIO 12</b> and <b>GPIO 23</b> are available in the dropdown if your rig is connected to the left or right (respectively) data connector on the Nexus DR-X. Also available is the<b> Client handles PTT</b> option, where the program using ARDOP (pat, for example) actually controls PTT. ARDOP itself plays no role in controlling PTT in this case. The remaining option is <b>rigctld network</b>. If this option is selected, <code>piardopc</code> will use Hamlib's <code>rigctld</code> for PTT. <code>rigctld</code> can be set up to use Flrig, which makes it handy for remotely controlling other attributes of the radio, provided the rig is supported by Flrig. 
 </p>
 <a href="#top">Top</a>
-<h3>Port</h3>
+<h3 id="ardopport">Port</h3>
 <p>
 The TCP port on which the ARDOP TNC is listening. Client applications use the ARDOP TNC by connecting to this port. Default is <b>8515</b>.
 </p>
 <a href="#top">Top</a>
-<h3>piardopc arguments</h3>
+<h3 id="ardoparguments">piardopc arguments</h3>
 <p>
 Optional arguments. Run <code>piardopc -h</code> in a Terminal for a description of the other arguments. Usually not needed. If you select <b>rigctld network</b> network for PTT, the Manager will add the appropriate arguments to <code>piardopc</code>. The default argument <code>--log=/dev/null</code> tells <code>piardopc</code> to not log to a local file. The same log data appears in the Monitor window. If you want to save the logged data, then remove this default value or change it to some other destination.
 </p>
@@ -270,10 +281,28 @@ Start Direwolf listening for KISS connections on the specified port. Programs su
 <a href="#top">Top</a>
 
 <h3 id="beaconmessage">Packet Beacon Message</h3>
-<p>When pat is running, your radio will beacon an IDENT message periodically, so other hams know you are capable of P2P. This text will be sent as part of the beacon. Default is no message.</p>
+<p>When pat is running, your radio will beacon an IDENT message periodically, so other hams know you are capable of P2P. This text will be sent as part of the beacon. Default is <b>Winlink P2P</b>.</p>
 <a href="#top">Top</a>
 
+<h3 id="patardopforcedarqbw">ARDOP Forced ARQ Bandwidth</h3>
+<p>pat will force the ARQ bandwidth to the ARDOP Max ARQ Bandwidth (defined in the next field). Default is <b>No</b> (unchecked).</p>
+<a href="#top">Top</a>
 
+<h3 id="patardopmaxarqbw">ARDOP Max ARQ Bandwidth</h3>
+<p>Default/listen ARQ bandwidth. Default is <b>500</b>.</p>
+<a href="#top">Top</a>
+
+<h3 id="patardopbeaconinterval">ARDOP Beacon Interval</h3>
+<p>pat will send ID frame at a regular interval when the listener is active (unit is seconds). Default is 0 (no beacon).</p>
+<a href="#top">Top</a>
+
+<h3 id="patardopenablecwid">ARDOP: Enable CW ID</h3>
+<p>pat will send FSK CW ID after an ID frame. Default is enabled (checked).</p>
+<a href="#top">Top</a>
+
+<h3 id="patardopenableptt">ARDOP: pat controls PTT</h3>
+<p>pat will, via Hamlib, control PTT for ARDOP. Default is disabled (unchecked).</p>
+<a href="#top">Top</a>
 
 <h3 id="pataliases">Edit pat Connection aliases button</h3>
 <p>
