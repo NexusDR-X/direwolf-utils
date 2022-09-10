@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 0.0.4
+#-    version         ${SCRIPT_NAME} 1.0.0
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -835,7 +835,19 @@ done
 shift $((${OPTIND} - 1)) ## shift options
 
 # Ensure only one instance of this script is running.
-pidof -o %PPID -x $(basename "$0") >/dev/null && exit 1
+pidof -o %PPID -x $(basename "$0") >/dev/null && SafeExit 1
+
+if pidof -o %PPID -x dw_pat_gui.sh >/dev/null
+then
+	TITLE="TNC and pat Manager $VERSION"
+	TEXT="<b><span color='red'>TNC Manager is a <u>replacement</u> for the older Direwolf TNC and pat GUI!\n \
+Only one of these programs can run at one time.</span>\n\n \
+Stop the <u>Direwolf TNC and pat GUI</u> first, then run this TNC Manager program.</b>"
+	yad --question --title="$TITLE" --text="$TEXT" \
+	--text-align=center --buttons-layout=center \
+	--button="OK":0
+	SafeExit 1
+fi
 
 # Check for required apps.
 for A in yad pat jq sponge piardopc direwolf rigctld

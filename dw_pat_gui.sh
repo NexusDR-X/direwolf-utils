@@ -15,7 +15,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.9.3
+#-    version         ${SCRIPT_NAME} 1.9.4
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -368,7 +368,10 @@ done
 shift $((${OPTIND} - 1)) ## shift options
 
 # Ensure only one instance of this script is running.
-pidof -o %PPID -x $(basename "$0") >/dev/null && exit 1
+pidof -o %PPID -x $(basename "$0") >/dev/null && SafeExit 1
+
+# Don't run this script if the tnc_manager is running.
+pgrep -f tnc_manager.sh &>/dev/null && SafeExit 1
 
 # Check for required apps.
 for A in yad pat jq sponge rigctld
