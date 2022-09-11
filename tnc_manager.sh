@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.0.0
+#-    version         ${SCRIPT_NAME} 1.0.1
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -52,22 +52,23 @@ function KillApps () {
 		kill $P >/dev/null 2>&1
 	done
    kill $VIRTUAL_COM_PID >/dev/null 2>&1
+	#kill $RIGCTLD_PID >/dev/null 2>&1
    sudo pkill kissattach >/dev/null 2>&1
    rm -f /tmp/kisstnc
 }
 
-function TrapCleanup() {
+#function TrapCleanup() {
+#   [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"
+#   kill $MANAGER_PID >/dev/null 2>&1
+#	KillApps
+#}
+
+function SafeExit() {
+   trap - INT TERM EXIT SIGINT
+	EXIT_CODE=${1:-0}
    [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"
    kill $MANAGER_PID >/dev/null 2>&1
 	KillApps
-}
-
-function SafeExit() {
-	EXIT_CODE=${1:-0}
-   trap - INT TERM EXIT SIGINT
-	TrapCleanup
-	#kill $RIGCTLD_PID >/dev/null 2>&1
-   rm -f $PIPE
    exit $EXIT_CODE
 }
 
@@ -158,7 +159,7 @@ function loadStartupSettings () {
 
 function updateStartupSettings () {
 	[[ -s $TMPDIR/CONFIGURE_STARTUP.txt ]] || Die "Unexpected input from dialog"
-	PREVIOUS_AUTOSTART="$STARTUP[_BOOTSTART_]"
+	PREVIOUS_AUTOSTART="${STARTUP[_BOOTSTART_]}"
 	IFS='|' read -r -a TF < "$TMPDIR/CONFIGURE_STARTUP.txt"
   	echo "declare -gA STARTUP" > "$GUI_STARTUP_CONFIG_FILE"
 	echo "STARTUP[_PAT_START_]='${TF[0]}'" >> "$GUI_STARTUP_CONFIG_FILE"
@@ -834,10 +835,11 @@ do
 done
 shift $((${OPTIND} - 1)) ## shift options
 
-# Ensure only one instance of this script is running.
-pidof -o %PPID -x $(basename "$0") >/dev/null && SafeExit 1
+# Ensure only this instance of this script is running. Kill the other instances.
+OTHER_PIDs="$(pidof -o %PPID -x $(basename $0))"
+[[ -n $OTHER_PIDs ]] && kill -SIGTERM $OTHER_PIDs
 
-if pidof -o %PPID -x dw_pat_gui.sh >/dev/null
+if pidof -x dw_pat_gui.sh >/dev/null
 then
 	TITLE="TNC and pat Manager $VERSION"
 	TEXT="<b><span color='red'>TNC Manager is a <u>replacement</u> for the older Direwolf TNC and pat GUI!\n \
