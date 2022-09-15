@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.0.1
+#-    version         ${SCRIPT_NAME} 1.0.2
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -551,6 +551,25 @@ Click the <b>Save...</b> button below after you make your changes.\n"
 #  pat Functions
 #============================
 
+function editPatPassword () {
+	PASSWD="${1:-}"
+	local CMD=(yad --form 
+		--title="Edit Passwd"
+		--text-align=center
+		--align=right
+		--borders=5
+		--item-separator="!"
+		--separator="|"
+		--form
+		--field="<b>Winlink\nPassword</b>"
+		--
+		"$PASSWD"
+	)
+	NEW_PASSWD="$("${CMD[@]}")"	
+	[[ $? == 0 ]] && echo "2:${NEW_PASSWD%%|*}" || echo "2:$PASSWD"
+}
+
+
 function loadPatSettings () {
 	PAT_CALL="$(jq -r ".mycall" $PAT_CONFIG)"
 	PAT_PASSWORD="$(jq -r ".secure_login_password" $PAT_CONFIG)"
@@ -580,17 +599,17 @@ function updatePatSettings () {
 	IFS='|' read -r -a TF < "$TMPDIR/CONFIGURE_PAT.txt"
 	PAT_CALL="${TF[0]^^}"
 	PAT_PASSWORD="${TF[1]}"
-	PAT_LOCATOR="${TF[2]^^}"
-	PAT_HTTP_PORT="${TF[3]}"
-	PAT_TELNET_PORT="${TF[4]}"
-	PAT_TELNET_PASSWD="${TF[5]}"
-	PAT_AX25_BEACON_INTERVAL="${TF[6]}"
-	PAT_AX25_BEACON_MESSAGE="${TF[7]}"
-	PAT_ARQ_BW_FORCED="${TF[8]}"
-	PAT_ARQ_BW_MAX="${TF[9]}"
-	PAT_ARDOP_BEACON_INTERVAL="${TF[10]}"
-	PAT_CW_ID="${TF[11]}"
-	PAT_ARDOP_PTT="${TF[12]}"
+	PAT_LOCATOR="${TF[3]^^}"
+	PAT_HTTP_PORT="${TF[4]}"
+	PAT_TELNET_PORT="${TF[5]}"
+	PAT_TELNET_PASSWD="${TF[6]}"
+	PAT_AX25_BEACON_INTERVAL="${TF[7]}"
+	PAT_AX25_BEACON_MESSAGE="${TF[8]}"
+	PAT_ARQ_BW_FORCED="${TF[9]}"
+	PAT_ARQ_BW_MAX="${TF[10]}"
+	PAT_ARDOP_BEACON_INTERVAL="${TF[11]}"
+	PAT_CW_ID="${TF[12]}"
+	PAT_ARDOP_PTT="${TF[13]}"
 	cat $PAT_CONFIG | jq \
 		--arg C "$PAT_CALL" \
 		--arg P "$PAT_PASSWORD" \
@@ -624,6 +643,7 @@ function yadPat () {
 			--focus-field 1 
 			--field="Call Sign"
 			--field="Winlink Password":H
+			--field="<b>Edit Winlink Password in visible text</b>":FBTN
 			--field="Locator Code"
 			--field="Web Service Port":NUM
 			--field="Telnet Service Port":NUM
@@ -640,6 +660,7 @@ function yadPat () {
 			--
 			"$PAT_CALL"
 			"$PAT_PASSWORD"
+			'@bash -c "editPatPassword %2"'
 			"$PAT_LOCATOR"
 			"$PAT_HTTP_PORT!8040..8049!1!"
 			"$PAT_TELNET_PORT!8770..8779!1!"
@@ -887,7 +908,7 @@ cat $PAT_CONFIG | jq \
 cat $PAT_CONFIG | jq --arg R "network" '.ax25.rig = $R' | sponge $PAT_CONFIG
 cat $PAT_CONFIG | jq --arg R "network" '.ardop.rig = $R' | sponge $PAT_CONFIG
 
-export -f setAX25Defaults loadAX25Defaults
+export -f setAX25Defaults loadAX25Defaults editPatPassword
 export load_ax25_defaults_cmd='@bash -c "setAX25Defaults; loadAX25Defaults"'
 export click_help_cmd='bash -c "xdg-open /usr/local/share/nexus/tnc_manager_help.html"'
 
@@ -1082,7 +1103,7 @@ yad --center --title="Error" --borders=20 --text "<b>pat is not running.\nNo web
 EOF
 	else
 		cat > $TMPDIR/pat_web.sh <<EOF
-xdg-open http://$HOSTNAME.local:$PAT_HTTP_PORT >/dev/null 2>&1
+xdg-open http://localhost:$PAT_HTTP_PORT >/dev/null 2>&1
 EOF
 	fi
 	chmod +x $TMPDIR/pat_web.sh
