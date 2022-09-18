@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.0.2
+#-    version         ${SCRIPT_NAME} 1.0.3
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -43,18 +43,17 @@ Optnum=$#
 #============================
 
 function KillApps () {
-   kill $DIREWOLF_PID >/dev/null 2>&1
-   kill $PAT_PID >/dev/null 2>&1
-	kill $MONITOR_PID >/dev/null 2>&1
-	kill -9 $ARDOP_PID  >/dev/null 2>&1
-   for P in ${YAD_PIDs[@]}
+	for APP in pat direwolf piardopc
 	do
-		kill $P >/dev/null 2>&1
+		[[ -s $TMPDIR/${APP}.pid ]] && kill $(cat $TMPDIR/${APP}.pid) >/dev/null 2>&1
+		rm -f $TMPDIR/${APP}.pid
 	done
+	kill $MONITOR_PID >/dev/null 2>&1
    kill $VIRTUAL_COM_PID >/dev/null 2>&1
 	#kill $RIGCTLD_PID >/dev/null 2>&1
    sudo pkill kissattach >/dev/null 2>&1
    rm -f /tmp/kisstnc
+   #pkill -f $TMPDIR/pat
 }
 
 #function TrapCleanup() {
@@ -66,9 +65,9 @@ function KillApps () {
 function SafeExit() {
    trap - INT TERM EXIT SIGINT
 	EXIT_CODE=${1:-0}
-   [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"
    kill $MANAGER_PID >/dev/null 2>&1
 	KillApps
+   [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"
    exit $EXIT_CODE
 }
 
@@ -100,6 +99,7 @@ function Sender () {
 	# app name (optional) and a time stamp
    #declare input=${1:-$(</dev/stdin)}
    declare APP="${1:-}"
+   TIME_FORMAT="%Y/%m/%d %H:%M:%S"
    [[ -n $APP ]] && APP=" ${APP}:"
    #cat -v | ts "${TIME_FORMAT}${APP}" | socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast
    stdbuf -oL ts "${TIME_FORMAT}${APP}" | socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast 
@@ -291,6 +291,27 @@ function yadAX25 () {
 	)
 	"${CMD[@]}" > $TMPDIR/CONFIGURE_AX25.txt &
 	return $!
+}
+
+function restartAX25 () {
+	local PORT="${1:wl2k}"
+	sudo ifconfig ax0 down 2>/dev/null
+	sudo pkill kissattach >/dev/null 2>&1
+	#sudo ifconfig ax0 up
+	echo "Starting kissattach: sudo $(command -v kissattach) $(readlink -f /tmp/kisstnc) $PORT" | Sender "kissattach"
+	sudo $(command -v kissattach) $(readlink -f /tmp/kisstnc) $PORT 2>&1 | Sender "kissattach"
+	if [ ${PIPESTATUS[0]} -ne 0 ]
+	then
+		echo "kissattach FAILED." | Sender "kissattach"
+		return 1
+	fi
+	return 0
+}
+
+function setKISSParms () {
+	[[ -z "$1" ]] && return 1
+	sudo $(command -v kissparms) $1 2>&1 | Sender "kissparms"
+	[ ${PIPESTATUS[0]} -eq 0 ] && return 0 || return 1
 }
 
 #============================
@@ -547,6 +568,25 @@ Click the <b>Save...</b> button below after you make your changes.\n"
 	return $!
 }
 
+function waitForPTY () {
+	# Wait for Direwolf to allocate a PTY
+	local COUNTER=0
+	local MAXWAIT=50
+	while [ $COUNTER -lt $MAXWAIT ]
+	do # Allocate a PTY to ax25
+		[ -L /tmp/kisstnc ] && break
+		sleep 0.1
+		let COUNTER=COUNTER+1
+	done
+	if [ $COUNTER -ge $MAXWAIT ]
+	then
+		echo "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?" | Sender "direwolf"
+		return 1
+	fi
+	echo "Direwolf has allocated a PTY." | Sender "direwolf"
+	return 0
+}
+
 #============================
 #  pat Functions
 #============================
@@ -679,6 +719,66 @@ function yadPat () {
 	return $!
 }
 
+function restartPat () {
+	local RUNNING_PID=''
+	if [[ -s $TMPDIR/pat.pid ]]
+	then
+		RUNNING_PID=$(cat $TMPDIR/pat.pid)
+		if grep -q "^$RUNNING_PID.*pat "
+		then
+			echo "Stopping pat PID=$(cat $TMPDIR/pat.pid)" | Sender 'pat'
+			kill $RUNNING_PID >/dev/null 2>&1
+		fi
+		rm -f $TMPDIR/pat.pid
+	fi 
+	local PAT_ARGS="${1:-'-l telnet'}"
+	local PAT="$(command -v pat) $PAT_ARGS http"
+	echo "Starting $PAT" | Sender 'pat'
+	($PAT 2>&1 | Sender "pat") &
+	local PAT_PID=$(pgrep -f "$PAT")
+	if [[ -n $PAT_PID ]] 
+	then
+		echo $PAT_PID > $TMPDIR/pat.pid
+		echo "pat started PID=$PAT_PID" | Sender 'pat'
+		return 0
+	else
+		rm -f $TMPDIR/pat.pid
+		echo "pat FAILED to start" | Sender 'pat'
+		return 1
+	fi
+}
+
+function restartApp () {
+	[[ -z "$1" ]] && return 1
+	local APP="$1"
+	local ARGS="${2:-''}"
+	local RUNNING_PID=''
+	if [[ -s $TMPDIR/${APP}.pid ]]
+	then
+		RUNNING_PID=$(cat $TMPDIR/${APP}.pid)
+		if (ps x | grep -q "^${RUNNING_PID}.*${APP} ")
+		then
+			echo "Stopping $APP PID=$RUNNING_PID" | Sender "$APP"
+			kill $RUNNING_PID >/dev/null 2>&1
+		fi
+	fi 
+	rm -f $TMPDIR/${APP}.pid
+	local CMD="$(command -v $APP) $ARGS"
+	echo "Starting $CMD" | Sender "$APP"
+	($CMD 2>&1 | Sender "$APP") &
+	local PID=$(pgrep -f "$CMD")
+	if [[ -n $PID ]] 
+	then
+		echo $PID > $TMPDIR/${APP}.pid
+		echo "$APP started PID=$PID" | Sender "$APP"
+		return 0
+	else
+		rm -f $TMPDIR/${APP}.pid
+		echo "${APP} FAILED to start" | Sender "$APP"
+		return 1
+	fi
+}
+
 #============================
 #  rigctl Functions
 #============================
@@ -731,6 +831,8 @@ function yadManager () {
   		--button="<b>Open pat Web interface</b>":"bash -c $TMPDIR/pat_web.sh" \
   		--button="<b>Help</b>":"$click_help_cmd" &
 	return $!
+# 		--button="<b>Restart AX25</b>":"bash -c 'restartAX25 ${AX25[_PORT_]}'" \
+#  		--button="<b>Restart pat</b>":"bash -c 'restartAX25 ${AX25[_PORT_]}; restartPat \"${PAT_LISTENERS}\"'" \
 }
 
 #============================
@@ -765,13 +867,12 @@ MESSAGE="Direwolf Configuration"
 
 ID="${RANDOM}"
 
-SOCAT_PORT=3333
+export SOCAT_PORT=3333
 # YAD Dialog Window settings
 POSX=20 
 POSY=50 
 WIDTH=300
 HEIGHT=200
-TIME_FORMAT="%Y/%m/%d %H:%M:%S"
 AX25PORT="wl2k"
 AX25PORTFILE="/etc/ax25/axports"
 PAT_VERSION="$(pat version | cut -d' ' -f2)"
@@ -934,7 +1035,7 @@ do
 	# Kill any running processes and remove temporary config files
 	KillApps
 	DIREWOLF_PID=''
-	PAT_PID=''
+#	PAT_PID=''
 	RIGCTLD_PID=$(pgrep rigctld)
 	PIARDOPC_PID=''
 	VIRTUAL_COM_PID=''
@@ -946,7 +1047,7 @@ do
 	# Start monitor window
 	MONITOR_PID=''
 	MONITOR_TITLE="TNC and pat Monitor $VERSION"
-	lxterminal --geometry=80x20 -t "$MONITOR_TITLE" -e "socat udp-recv:$SOCAT_PORT,reuseaddr -" &
+	lxterminal --geometry=80x20 -t "$MONITOR_TITLE" -e "socat -u udp-recv:$SOCAT_PORT,reuseaddr -" &
 	while [[ -z $MONITOR_PID ]]
 	do
 		MONITOR_PID=$(lsof -t -i udp:$SOCAT_PORT)
@@ -988,44 +1089,19 @@ do
 		if [[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]]
 		then
 			# Start Direwolf
-			# Direwolf does not allow embedded spaces in timestamp format string -T
-			#DIREWOLF="$(command -v direwolf) -p -t 0 -d u -T "%Y%m%dT%H:%M:%S""
-			DIREWOLF="$(command -v direwolf) -p -t ${DW[_COLORS_]} -d u -a ${DW[_AUDIOSTATS_]}"
-			echo -e "\nUsing Direwolf configuration:" | Sender "direwolf"
+			echo -e "\nUsing Direwolf configuration in $DW_CONFIG:" | Sender "direwolf"
 			cat "$DW_CONFIG" | Sender "direwolf"
-			($DIREWOLF -c $DW_CONFIG 2>&1 | Sender "direwolf") & 
-			DIREWOLF_PID=$(pgrep -f "^$DIREWOLF -c $DW_CONFIG")
-			echo "Direwolf TNC has started.  PID=$DIREWOLF_PID" | Sender "direwolf"
-			# Wait for Direwolf to allocate a PTY
-			COUNTER=0
-			MAXWAIT=8
-			while [ $COUNTER -lt $MAXWAIT ]
-			do # Allocate a PTY to ax25
-				[ -L /tmp/kisstnc ] && break
-				sleep 1
-				let COUNTER=COUNTER+1
-			done
-			if [ $COUNTER -ge $MAXWAIT ]
+			DIREWOLF_ARGS="-p -t ${DW[_COLORS_]} -d u -a ${DW[_AUDIOSTATS_]} -c $DW_CONFIG"
+			restartApp direwolf "$DIREWOLF_ARGS" || Die "Direwolf FAILED to start"
+			waitForPTY || Die "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?"
+			if restartAX25 ${AX25[_PORT_]}
 			then
-				Die "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?"
-			fi
-			echo "Direwolf has allocated a PTY." | Sender "direwolf"
-			echo "kissattach to this PTY." | Sender "kissattach"
-
-			# Start kissattach on new PTY
-			sudo $(command -v kissattach) $(readlink -f /tmp/kisstnc) ${AX25[_PORT_]} 2>&1 | Sender "kissattach"
-			if [ ${PIPESTATUS[0]} -ne 0 ]
-			then
-				echo "kissattach FAILED." | Sender "kissattach"
+				# Set KISS parameters
+				KISSPARM_ARGS="-c 1 -p ${AX25[_PORT_]} -t ${AX25[_TXDELAY_]} -l ${AX25[_TXTAIL_]} -s ${AX25[_SLOTTIME_]} -r ${AX25[_PERSIST_]} -f n"
+				setKISSParms "$KISSPARM_ARGS" || Die "kissparms settings failed.  Aborting."
+			else
 				Die "kissattach failed.  Aborting."
 			fi
-		
-			# Set KISS parameters
-			KISSPARMS="-c 1 -p ${AX25[_PORT_]} -t ${AX25[_TXDELAY_]} -l ${AX25[_TXTAIL_]} -s ${AX25[_SLOTTIME_]} -r ${AX25[_PERSIST_]} -f n"
-			echo "Setting $(command -v kissparms) $KISSPARMS" | Sender "kissparms"
-			sleep 2
-			sudo $(command -v kissparms) $KISSPARMS 2>&1 | Sender "kissparms"
-			[ ${PIPESTATUS[0]} -eq 0 ] || Die "kissparms settings failed.  Aborting."
 		fi
 
 		if [[ ${STARTUP[_ARDOP_START_]} == TRUE ]]
@@ -1052,23 +1128,17 @@ do
 					echo "ERROR! rigctld not listening on $RIGCTLD_PORT. ARDOP PTT disabled." | Sender "manager"
 				fi
 			fi
-			PIARDOPC="$(command -v piardopc) $PIADROPC_ARGUMENTS"
-			($PIARDOPC 2>&1 | Sender "ardop") &
-			ARDOP_PID=$(pgrep -f "$PIARDOPC")
-			echo "piardopc has started PID=$ARDOP_PID" | Sender "ardop"
+			restartApp piardopc "$PIADROPC_ARGUMENTS" || Die "piardopc FAILED to start.  Aborting." 
 		fi
 		
 		# Start pat
 		if [[ ${STARTUP[_PAT_START_]} == TRUE ]]
 		then
-			PAT_LISTENERS="-l telnet"
-			[[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]] && PAT_LISTENERS+=",ax25"
-			[[ ${STARTUP[_ARDOP_START_]} == TRUE ]] && PAT_LISTENERS+=",ardop"
-			PAT="$(command -v pat) $PAT_LISTENERS http"
-			($PAT 2>&1 | Sender "pat") &
-			PAT_PID=$(pgrep -f "$PAT")
-		else
-			PAT_PID=""
+			PAT_ARGS="-l telnet"
+			[[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]] && PAT_ARGS+=",ax25"
+			[[ ${STARTUP[_ARDOP_START_]} == TRUE ]] && PAT_ARGS+=",ardop"
+			PAT_ARGS+=" http"
+			restartApp pat "$PAT_ARGS"
 		fi
 	fi 
 
@@ -1096,14 +1166,14 @@ do
 	yadRigctl 6
 	YAD_PIDs+=( $! )
 
-	if [[ -z $PAT_PID ]]
+	if [[ -s $TMPDIR/pat.pid ]]
 	then
 		cat > $TMPDIR/pat_web.sh <<EOF
-yad --center --title="Error" --borders=20 --text "<b>pat is not running.\nNo web interface to open.</b>" --button="Close":0 --buttons-layout=center
+xdg-open http://localhost:$PAT_HTTP_PORT >/dev/null 2>&1
 EOF
 	else
 		cat > $TMPDIR/pat_web.sh <<EOF
-xdg-open http://localhost:$PAT_HTTP_PORT >/dev/null 2>&1
+yad --center --title="Error" --borders=20 --text "<b>pat is not running.\nNo web interface to open.</b>" --button="Close":0 --buttons-layout=center
 EOF
 	fi
 	chmod +x $TMPDIR/pat_web.sh
@@ -1111,7 +1181,7 @@ EOF
 	# Set up a yad notebook with the tabs.	
 	yadManager
   	MANAGER_PID=$!
-  	echo "Manager window PID=$MANAGER_PID" | Sender "manager"
+  	echo "Manager started PID=$MANAGER_PID" | Sender "manager"
   	WID=''
   	while [[ -z $WID ]]
 	do
