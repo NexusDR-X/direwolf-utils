@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.0.3
+#-    version         ${SCRIPT_NAME} 1.0.4
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -828,6 +828,7 @@ function yadManager () {
   		--tab="Rig Control" \
   		--button="<b>Stop &#x26; Exit</b>":1 \
   		--button="<b>Save &#x26; Restart</b>":0 \
+  		--button="<b>Restart AX25</b>":"bash -c $TMPDIR/restart_ax25.sh" \
   		--button="<b>Open pat Web interface</b>":"bash -c $TMPDIR/pat_web.sh" \
   		--button="<b>Help</b>":"$click_help_cmd" &
 	return $!
@@ -844,7 +845,7 @@ function yadManager () {
 # Create temp directory with three random numbers and the process ID
 # in the name.  This directory is removed automatically at exit.
 # -----------------------------------
-TMPDIR="/tmp/${SCRIPT_NAME}.$RANDOM.$RANDOM.$RANDOM.$$"
+export TMPDIR="/tmp/${SCRIPT_NAME}.$RANDOM.$RANDOM.$RANDOM.$$"
 (umask 077 && mkdir "${TMPDIR}") || {
   Die "Could not create temporary directory! Exiting."
 }
@@ -1009,7 +1010,7 @@ cat $PAT_CONFIG | jq \
 cat $PAT_CONFIG | jq --arg R "network" '.ax25.rig = $R' | sponge $PAT_CONFIG
 cat $PAT_CONFIG | jq --arg R "network" '.ardop.rig = $R' | sponge $PAT_CONFIG
 
-export -f setAX25Defaults loadAX25Defaults editPatPassword
+export -f setAX25Defaults loadAX25Defaults editPatPassword restartAX25 restartApp waitForPTY setKISSParms Sender
 export load_ax25_defaults_cmd='@bash -c "setAX25Defaults; loadAX25Defaults"'
 export click_help_cmd='bash -c "xdg-open /usr/local/share/nexus/tnc_manager_help.html"'
 
@@ -1030,6 +1031,9 @@ $DEBUG && set -x
 
 while true
 do
+	# Create restart script
+	echo "exit 0" > $TMPDIR/restart_ax25.sh
+	chmod +x $TMPDIR/restart_ax25.sh
 	YAD_PIDs=()
 	
 	# Kill any running processes and remove temporary config files
@@ -1102,7 +1106,17 @@ do
 			else
 				Die "kissattach failed.  Aborting."
 			fi
+			cat > $TMPDIR/restart_ax25.sh <<EOF
+[[ -s $TMPDIR/direwolf.pid ]] && kill \$(cat $TMPDIR/direwolf.pid) >/dev/null 2>&1
+sudo pkill kissattach >/dev/null 2>&1
+rm -f /tmp/kisstnc
+restartApp direwolf "$DIREWOLF_ARGS"
+waitForPTY
+restartAX25 ${AX25[_PORT_]}
+setKISSParms "$KISSPARM_ARGS"
+EOF
 		fi
+#[[ -s $TMPDIR/pat.pid ]] && kill \$(cat $TMPDIR/pat.pid) >/dev/null 2>&1
 
 		if [[ ${STARTUP[_ARDOP_START_]} == TRUE ]]
 		then
@@ -1139,6 +1153,9 @@ do
 			[[ ${STARTUP[_ARDOP_START_]} == TRUE ]] && PAT_ARGS+=",ardop"
 			PAT_ARGS+=" http"
 			restartApp pat "$PAT_ARGS"
+#			cat >> $TMPDIR/restart_ax25.sh <<EOF
+#restartApp pat "$PAT_ARGS"
+#EOF
 		fi
 	fi 
 
