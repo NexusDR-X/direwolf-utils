@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.0.4
+#-    version         ${SCRIPT_NAME} 1.0.5
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -111,7 +111,7 @@ function getPlaybackDevices () {
       PLAYBACK_IGNORE="$(pacmd list-sources 2>/dev/null | grep name: | tr -d '\t' | cut -d' ' -f2 | sed 's/^<//;s/>$//' | tr '\n' '\|' | sed 's/|/\\|/g')"
       PLAYBACKs="$(aplay -L | grep -v "$PLAYBACK_IGNORE^ .*\|^dsnoop\|^sys\|^default\|^dmix\|^hw\|^hdmi\|^usbstream\|^jack\|^pulse\|^upmix\|^vdownmix\|^oss\|^speexrate\|^samplerate\|^surround\|^front\|^lavrate" | tr '\n' '!' | sed 's/!$//')"
    else  # pulseaudio isn't running.  Check only for null and plughw devices
-      PLAYBACKs="$(aplay -L | grep "^null\|^plughw" | tr '\n' '!' | sed 's/!$//')"
+      PLAYBACKs="$(aplay -L | grep "^null\|^plughw\|^fepi.*playback" | tr '\n' '!' | sed 's/!$//')"
    fi
    echo "$PLAYBACKs"
 }
@@ -122,7 +122,7 @@ function getCaptureDevices () {
       CAPTURE_IGNORE="$(pacmd list-sinks 2>/dev/null | grep name: | tr -d '\t' | cut -d' ' -f2 | sed 's/^<//;s/>$//' | tr '\n' '\|' | sed 's/|/\\|/g')"
       CAPTUREs="$(arecord -L | grep -v "$CAPTURE_IGNORE^ .*\|^dsnoop\|^sys\|^default\|^dmix\|^hw\|^hdmi\|^usbstream\|^jack\|^pulse\|^upmix\|^vdownmix\|^oss\|^speexrate\|^samplerate\|^surround\|^front\|^lavrate" | tr '\n' '!' | sed 's/!$//')"
    else  # pulseaudio isn't running.  Check only for null and plughw devices
-      CAPTUREs="$(arecord -L | grep "^null\|^plughw" | tr '\n' '!' | sed 's/!$//')"
+      CAPTUREs="$(arecord -L | grep "^null\|^plughw\|^fepi.*capture" | tr '\n' '!' | sed 's/!$//')"
    fi
    echo "$CAPTUREs"
 }
@@ -766,7 +766,9 @@ function restartApp () {
 	local CMD="$(command -v $APP) $ARGS"
 	echo "Starting $CMD" | Sender "$APP"
 	($CMD 2>&1 | Sender "$APP") &
-	local PID=$(pgrep -f "$CMD")
+	sleep 1
+	#local PID=$(pgrep -f "$CMD")
+	local PID=$(pidof -- $CMD)
 	if [[ -n $PID ]] 
 	then
 		echo $PID > $TMPDIR/${APP}.pid
@@ -1095,9 +1097,16 @@ do
 			# Start Direwolf
 			echo -e "\nUsing Direwolf configuration in $DW_CONFIG:" | Sender "direwolf"
 			cat "$DW_CONFIG" | Sender "direwolf"
-			DIREWOLF_ARGS="-p -t ${DW[_COLORS_]} -d u -a ${DW[_AUDIOSTATS_]} -c $DW_CONFIG"
-			restartApp direwolf "$DIREWOLF_ARGS" || Die "Direwolf FAILED to start"
-			waitForPTY || Die "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?"
+			[[ ${DW[_AUDIOSTATS_]} == 0 ]] && STATS="" || STATS="-a ${DW[_AUDIOSTATS_]}"
+			DIREWOLF_ARGS="-p -t ${DW[_COLORS_]} -d u -c $DW_CONFIG $STATS"
+			TRIES=2
+			while (( $TRIES > 0 ))
+			do
+				restartApp direwolf "$DIREWOLF_ARGS" || Die "Direwolf FAILED to start"
+				waitForPTY && break || TRIES=$(( TRIES - 1 ))
+				echo "Trying again to start direwolf" | Sender "direwolf"
+			done 
+			(( $TRIES == 0 )) && Die "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?"
 			if restartAX25 ${AX25[_PORT_]}
 			then
 				# Set KISS parameters
@@ -1106,15 +1115,6 @@ do
 			else
 				Die "kissattach failed.  Aborting."
 			fi
-			cat > $TMPDIR/restart_ax25.sh <<EOF
-[[ -s $TMPDIR/direwolf.pid ]] && kill \$(cat $TMPDIR/direwolf.pid) >/dev/null 2>&1
-sudo pkill kissattach >/dev/null 2>&1
-rm -f /tmp/kisstnc
-restartApp direwolf "$DIREWOLF_ARGS"
-waitForPTY
-restartAX25 ${AX25[_PORT_]}
-setKISSParms "$KISSPARM_ARGS"
-EOF
 		fi
 #[[ -s $TMPDIR/pat.pid ]] && kill \$(cat $TMPDIR/pat.pid) >/dev/null 2>&1
 
@@ -1157,6 +1157,20 @@ EOF
 #restartApp pat "$PAT_ARGS"
 #EOF
 		fi
+
+		if [[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]]
+		then	
+			cat > $TMPDIR/restart_ax25.sh <<EOF
+killall direwolf >/dev/null 2>&1
+rm -f /tmp/kisstnc
+restartApp direwolf "$DIREWOLF_ARGS"
+restartApp direwolf "$DIREWOLF_ARGS"
+waitForPTY
+restartAX25 ${AX25[_PORT_]}
+setKISSParms "$KISSPARM_ARGS"
+EOF
+		fi
+
 	fi 
 
 	# Startup tab 1
