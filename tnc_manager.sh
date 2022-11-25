@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.0.5
+#-    version         ${SCRIPT_NAME} 1.0.6
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -992,19 +992,6 @@ then # config.json missing or corrupted.  Make a new one.
 	echo -n "" | pat configure >/dev/null 2>&1
 fi
 
-# If this is the first time running this script, don't attempt to start until user configures
-if [[ -s $PAT_CONFIG && -s $GUI_STARTUP_CONFIG_FILE && -s $GUI_ARDOP_CONFIG_FILE && -s $GUI_AX25_CONFIG_FILE && -s $GUI_DIREWOLF_CONFIG_FILE ]]
-then # GUI Configuration files exist
-	if [[ $(jq -r ".mycall" $PAT_CONFIG) == "" ]]
-	then # pat config files present, but not configured
-		FIRST_RUN=true
-	else # pat config files present and configured
-		FIRST_RUN=false
-	fi
-else # No configuration files exist
-	FIRST_RUN=true
-fi
-
 # Set up pat for rigctl network connection in config.json
 cat $PAT_CONFIG | jq \
    '.hamlib_rigs += {"network": {"address": "localhost:4532", "network": "tcp"}}' | sponge $PAT_CONFIG
@@ -1033,6 +1020,19 @@ $DEBUG && set -x
 
 while true
 do
+	# If this is the first time running this script, don't attempt to start until user configures
+	if [[ -s $PAT_CONFIG && -s $GUI_STARTUP_CONFIG_FILE && -s $GUI_ARDOP_CONFIG_FILE && -s $GUI_AX25_CONFIG_FILE && -s $GUI_DIREWOLF_CONFIG_FILE ]]
+	then # GUI Configuration files exist
+		if [[ $(jq -r ".mycall" $PAT_CONFIG) == "" ]]
+		then # pat config files present, but not configured
+			FIRST_RUN=true
+		else # pat config files present and configured
+			FIRST_RUN=false
+		fi
+	else # No configuration files exist
+		FIRST_RUN=true
+	fi
+
 	# Create restart script
 	echo "exit 0" > $TMPDIR/restart_ax25.sh
 	chmod +x $TMPDIR/restart_ax25.sh
