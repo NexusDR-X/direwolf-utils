@@ -1,0 +1,21 @@
+[Unit]
+# Version 1.0.0
+Description=Direwolf @ KISS port %I
+PartOf=tnc@%i.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bash -c "source %h/.config/tnc/args.%i; \
+/usr/bin/direwolf $DIREWOLF_ARGS 2>&1 | \
+/usr/bin/stdbuf -oL /usr/bin/ts '%%Y/%%m/%%d %%H:%%M:%%S direwolf@%i' | \
+/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+
+# Make sure direwolf is listening on KISS port before declaring victory
+ExecStartPost=/bin/timeout 5 /usr/bin/sh -c 'while ! /usr/bin/nc -z 127.0.0.1 %i; do sleep 0.1; done'
+
+ExecStopPost=-/usr/bin/bash -c "echo 'stopped.' | \
+/usr/bin/stdbuf -oL /usr/bin/ts '%%Y/%%m/%%d %%H:%%M:%%S direwolf@%i' | \
+/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+
+#[Install]
+#WantedBy=default.target

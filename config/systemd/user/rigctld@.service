@@ -1,0 +1,16 @@
+[Unit]
+# Version 1.0.0
+Description=rigctld for pat %I
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bash -c "source %h/.config/tnc/args.%i; \
+/usr/bin/rigctld $RIGCTLD_ARGS 2>&1 | \
+/usr/bin/stdbuf -oL ts '%%Y/%%m/%%d %%H:%%M:%%S rigctld@%i' | \
+/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+ExecStopPost=-/usr/bin/bash -c "echo 'stopped.' | \
+/usr/bin/stdbuf -oL ts '%%Y/%%m/%%d %%H:%%M:%%S rigctld@%i' | \
+/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+
+#[Install]
+#WantedBy=default.target

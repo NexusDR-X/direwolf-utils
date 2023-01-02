@@ -1,0 +1,14 @@
+[Unit]
+# Version 1.0.0
+Description=User kissattach %I calls kissattach %I
+After=kissport@%i.service
+PartOf=tnc@%i.target
+
+[Service]
+Type=oneshot
+ExecStart=sudo /usr/bin/systemctl start kissattach@%i.service
+ExecStop=sudo /usr/bin/systemctl stop kissattach@%i.service
+RemainAfterExit=yes
+
+#[Install]
+#WantedBy=default.target

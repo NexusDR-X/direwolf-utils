@@ -45,12 +45,16 @@ Optnum=$#
 function KillApps () {
 	for APP in pat direwolf piardopc
 	do
+		#echo >&2 "Killing $APP"
 		[[ -s $TMPDIR/${APP}.pid ]] && kill $(cat $TMPDIR/${APP}.pid) >/dev/null 2>&1
 		rm -f $TMPDIR/${APP}.pid
 	done
+	#echo >&2 "Killing Monitor"
 	kill $MONITOR_PID >/dev/null 2>&1
+	#echo >&2 "Killing socat"
    kill $VIRTUAL_COM_PID >/dev/null 2>&1
 	#kill $RIGCTLD_PID >/dev/null 2>&1
+	#echo >&2 "Killing kissattach"
    sudo pkill kissattach >/dev/null 2>&1
    rm -f /tmp/kisstnc
    #pkill -f $TMPDIR/pat
@@ -65,6 +69,7 @@ function KillApps () {
 function SafeExit() {
    trap - INT TERM EXIT SIGINT
 	EXIT_CODE=${1:-0}
+	#echo >&2 "Killing manager"
    kill $MANAGER_PID >/dev/null 2>&1
 	KillApps
    [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"

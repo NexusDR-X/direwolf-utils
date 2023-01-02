@@ -1,0 +1,20 @@
+[Unit]
+# Version 1.0.0
+Description=pat Winlink client at %I
+# Uncommenting the following the Requires= line will cause 
+# tnc@%i.target to stop when this pat service stops
+Wants=tnc@%i.target
+After=tnc@%i.target rigctld@%i.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bash -c "source %h/.config/direwolf/pat.%i; \
+/usr/bin/pat $PAT_ARGS 2>&1 | \
+/usr/bin/stdbuf -oL /usr/bin/ts '%%Y/%%m/%%d %%H:%%M:%%S pat@%i' | \
+/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+ExecStopPost=-/usr/bin/bash -c "echo 'stopped.' | \
+/usr/bin/stdbuf -oL /usr/bin/ts '%%Y/%%m/%%d %%H:%%M:%%S pat@%i' | \
+/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+
+#[Install]
+#WantedBy=default.target

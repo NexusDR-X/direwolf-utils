@@ -1,0 +1,19 @@
+[Unit]
+# Version 1.0.0
+Description=KISS /tmp/kisstnc%i to socat TCP port %i
+After=direwolf@%i.service
+PartOf=tnc@i.target
+
+[Service]
+Type=simple
+# unlink-close=1 is needed so that clients that happened to be connected
+# to the pty won't cause this service to not stop when requested.
+ExecStart=/usr/bin/socat -t 0 pty,raw,echo=0,link=/tmp/kisstnc%i,mode=666 TCP4:127.0.0.1:%i
+# Wait for socat to create pty before declaring victory
+ExecStartPost=/bin/timeout 5 /bin/sh -c "while ! test -c /tmp/kisstnc%i; do sleep 0.1; done"
+ExecStopPost=-/usr/bin/bash -c "echo 'stopped.' | \
+/usr/bin/stdbuf -oL /usr/bin/ts '%%Y/%%m/%%d %%H:%%M:%%S direwolfkiss@%i' | \
+/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+
+#[Install]
+#WantedBy=default.target
