@@ -1,7 +1,5 @@
 [Unit]
-# Version 1.0.0
-# This is usually called by a user oneshot unit: 
-#    systemctl --user start kissattach@%i.service
+# Version 1.0.1
 Description=kissattach to /tmp/kisstnc%i
 
 [Service]
@@ -11,6 +9,8 @@ test -n $DEV && \
 (/usr/sbin/kissattach $DEV %i | \
 /usr/bin/stdbuf -oL ts "%%Y/%%m/%%d %%H:%%M:%%S kissattach@%i" | \
 /usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast) || exit 1'
+# Set some reasonable defaults for kiss parameters
+ExecStartPost=-/bin/bash -c 'sudo /usr/sbin/kissparms -p %i -c 1 -t 200 -l 50 -s 64 -r 20 -f n'
 
 ExecStopPost=-/bin/bash -c 'CALL=$(/usr/bin/grep -v "^#" /etc/ax25/axports | grep "^%i" | /usr/bin/awk \'{ print $2 }\'); \
 AXINT=$(/usr/sbin/ifconfig -a | /usr/bin/grep -B3 "ax25 $CALL" | /usr/bin/grep "^ax" | /usr/bin/cut -d: -f 1); \
