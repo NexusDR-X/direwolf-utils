@@ -1,22 +1,22 @@
 [Unit]
-# Version 1.0.4
-Description=Direwolf @ %I
-PartOf=tnc@%i.target
+# Version 1.0.1
+Description=ARDOP (piardopc) %I
 
 [Service]
 Type=simple
 
 ExecStart=/usr/bin/bash -c 'source %I; \
-/usr/bin/direwolf $DIREWOLF_ARGS 2>&1 | \
+/usr/local/bin/piardopc $PIARDOPC_ARGS 2>&1 | \
 /usr/bin/stdbuf -oL /usr/bin/ts "%%Y/%%m/%%d %%H:%%M:%%S %p" | \
 /usr/bin/socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast'
 
-# Make sure direwolf is listening on KISS port before declaring victory
-ExecStartPost=/usr/bin/timeout 5 /usr/bin/bash -c 'source %I; \
-while ! /usr/bin/nc -z 127.0.0.1 $KISS_PORT; do sleep 0.1; done'
+ExecStartPost=-/usr/bin/bash -c 'source %I; \
+echo "started." | \
+/usr/bin/stdbuf -oL /usr/bin/ts "%%Y/%%m/%%d %%H:%%M:%%S %p" | \
+/usr/bin/socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast'
 
 ExecStopPost=-/usr/bin/bash -c 'source %I; \
-echo 'stopped.' | \
+echo "stopped." | \
 /usr/bin/stdbuf -oL /usr/bin/ts "%%Y/%%m/%%d %%H:%%M:%%S %p" | \
 /usr/bin/socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast'
 

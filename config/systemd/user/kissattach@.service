@@ -1,11 +1,12 @@
 [Unit]
-# Version 1.0.0
-Description=User kissattach %I calls kissattach %I
+# Version 1.0.2
+Description=kissattach@%I
 After=kissport@%i.service
 PartOf=tnc@%i.target
 
 [Service]
 Type=oneshot
+#Environment="DIR=%h/.config/tnc/args.%i"
 ExecStart=sudo /usr/bin/systemctl start kissattach@%i.service
 ExecStop=sudo /usr/bin/systemctl stop kissattach@%i.service
 RemainAfterExit=yes

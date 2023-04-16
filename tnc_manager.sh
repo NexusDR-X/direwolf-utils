@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 1.0.6
+#-    version         ${SCRIPT_NAME} 2.0.3
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -43,36 +43,62 @@ Optnum=$#
 #============================
 
 function KillApps () {
-	for APP in pat direwolf piardopc
+	for APP in pat ardop rigctldvcom rigctld
 	do
-		#echo >&2 "Killing $APP"
-		[[ -s $TMPDIR/${APP}.pid ]] && kill $(cat $TMPDIR/${APP}.pid) >/dev/null 2>&1
-		rm -f $TMPDIR/${APP}.pid
+		systemctl --user stop $(systemd-escape --template $APP@.service "$ARGS_CONFIG") 2>/dev/null
 	done
-	#echo >&2 "Killing Monitor"
-	kill $MONITOR_PID >/dev/null 2>&1
-	#echo >&2 "Killing socat"
-   kill $VIRTUAL_COM_PID >/dev/null 2>&1
-	#kill $RIGCTLD_PID >/dev/null 2>&1
-	#echo >&2 "Killing kissattach"
-   sudo pkill kissattach >/dev/null 2>&1
-   rm -f /tmp/kisstnc
-   #pkill -f $TMPDIR/pat
+	systemctl --user stop $(systemd-escape --template tnc@.target "$ARGS_CONFIG") 2>/dev/null
+	unset SOCAT_PORT
+	unset ARGS_CONFIG
+	unset VIRTUAL_COM
+	unset RIGCTL_PTT_ON
+	unset RIGCTL_PTT_OFF
+	unset EDITOR
+	unset AX25PORTFILE
+	unset PAT_CONFIG
+	unset DW_CONFIG
+	unset setAX25Defaults 
+	unset setDirewolfDefaults 
+	unset setARDOPDefaults
+	unset loadARDOPDefaults
+	unset loadAX25Defaults 
+	unset loadDirewolfDefaults 
+	unset updateAX25Settings 
+	unset updateAxports
+	unset updateARDOPSettings 
+	unset updateDirewolfSettings 
+	unset updateStartupSettings 
+	unset makeDirewolfConfig 
+	unset updateRigctldSettings
+	unset editPatPassword 
+	unset updatePatSettings 
+	unset Sender 
+	unset restart 
+	unset startStop
+	unset argModify
+	unset click_help_cmd
+	unset save_startup_settings_cmd
+	unset load_ax25_defaults_cmd
+	unset save_ax25_settings_cmd
+	unset save_ardop_settings_cmd
+	unset save_direwolf_settings_cmd
+	unset save_pat_settings_cmd
+	unset GUI_STARTUP_CONFIG_FILE
+	unset GUI_DIREWOLF_CONFIG_FILE
+	unset GUI_ARDOP_CONFIG_FILE
+	unset GUI_AX25_CONFIG_FILE
+	unset GUI_RIGCTLD_CONFIG_FILE
+	unset GUI_PAT_CONFIG_FILE
 }
-
-#function TrapCleanup() {
-#   [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"
-#   kill $MANAGER_PID >/dev/null 2>&1
-#	KillApps
-#}
 
 function SafeExit() {
    trap - INT TERM EXIT SIGINT
 	EXIT_CODE=${1:-0}
-	#echo >&2 "Killing manager"
    kill $MANAGER_PID >/dev/null 2>&1
 	KillApps
-   [[ -d "${TMPDIR}" ]] && rm -rf "${TMPDIR}/"
+	[[ -d "${TMPDIR}" ]] && rm -r "${TMPDIR}"
+	unset TMPDIR
+	kill $MONITOR_PID >/dev/null 2>&1
    exit $EXIT_CODE
 }
 
@@ -99,24 +125,31 @@ function Die () {
 	SafeExit 1
 }
 
+function argModify () {
+   local ARG=$(echo $@ | cut -d '=' -f1)
+   grep -v "^${ARG}" $ARGS_CONFIG | sponge $ARGS_CONFIG
+   cat >> $ARGS_CONFIG <<EOF
+$@
+EOF
+}
+
 function Sender () {
 	# Data piped to this function is sent to a socat pipe, prepended by the 
 	# app name (optional) and a time stamp
-   #declare input=${1:-$(</dev/stdin)}
+	# To monitor received data, run: socat -u udp-recv:$SOCAT_PORT,reuseaddr -
    declare APP="${1:-}"
    TIME_FORMAT="%Y/%m/%d %H:%M:%S"
    [[ -n $APP ]] && APP=" ${APP}:"
-   #cat -v | ts "${TIME_FORMAT}${APP}" | socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast
    stdbuf -oL ts "${TIME_FORMAT}${APP}" | socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast 
 }
 
 function getPlaybackDevices () {
 	if pgrep pulseaudio >/dev/null 2>&1
    then # There may be pulseaudio ALSA devices.  Look for them.
-      PLAYBACK_IGNORE="$(pacmd list-sources 2>/dev/null | grep name: | tr -d '\t' | cut -d' ' -f2 | sed 's/^<//;s/>$//' | tr '\n' '\|' | sed 's/|/\\|/g')"
-      PLAYBACKs="$(aplay -L | grep -v "$PLAYBACK_IGNORE^ .*\|^dsnoop\|^sys\|^default\|^dmix\|^hw\|^hdmi\|^usbstream\|^jack\|^pulse\|^upmix\|^vdownmix\|^oss\|^speexrate\|^samplerate\|^surround\|^front\|^lavrate" | tr '\n' '!' | sed 's/!$//')"
+      PLAYBACK_IGNORE="$(pacmd list-sources 2>/dev/null | grep name: | tr -d '\t' | cut -d' ' -f2 | sed 's/^<//;s/>$//' | tr '\n' '|' | sed 's/|/\\|/g')"
+      PLAYBACKs="$(aplay -L | egrep -v "$PLAYBACK_IGNORE^ .*|^dshare|^sys|^default|^dmix|^hw|^hdmi|^usbstream|^jack|^pulse|^upmix|^vdownmix|^oss\|^speexrate\|^samplerate\|^surround\|^front\|^lavrate|^ .*" | tr '\n' '!' | sed 's/!$//')"
    else  # pulseaudio isn't running.  Check only for null and plughw devices
-      PLAYBACKs="$(aplay -L | grep "^null\|^plughw\|^fepi.*playback" | tr '\n' '!' | sed 's/!$//')"
+      PLAYBACKs="$(aplay -L | grep "^null\|^plughw\|^fepi" | tr '\n' '!' | sed 's/!$//')"
    fi
    echo "$PLAYBACKs"
 }
@@ -124,13 +157,154 @@ function getPlaybackDevices () {
 function getCaptureDevices () {
 	if pgrep pulseaudio >/dev/null 2>&1
    then # There may be pulseaudio ALSA devices.  Look for them.
-      CAPTURE_IGNORE="$(pacmd list-sinks 2>/dev/null | grep name: | tr -d '\t' | cut -d' ' -f2 | sed 's/^<//;s/>$//' | tr '\n' '\|' | sed 's/|/\\|/g')"
-      CAPTUREs="$(arecord -L | grep -v "$CAPTURE_IGNORE^ .*\|^dsnoop\|^sys\|^default\|^dmix\|^hw\|^hdmi\|^usbstream\|^jack\|^pulse\|^upmix\|^vdownmix\|^oss\|^speexrate\|^samplerate\|^surround\|^front\|^lavrate" | tr '\n' '!' | sed 's/!$//')"
+      CAPTURE_IGNORE="$(pacmd list-sinks 2>/dev/null | grep name: | tr -d '\t' | cut -d' ' -f2 | sed 's/^<//;s/>$//' | tr '\n' '|' | sed 's/|/\\|/g')"
+      CAPTUREs="$(arecord -L | egrep -v "$CAPTURE_IGNORE^ .*|^dsnoop|^sys|^default|^hw|^hdmi|^usbstream|^jack|^pulse|^ .*" | tr '\n' '!' | sed 's/!$//')"
    else  # pulseaudio isn't running.  Check only for null and plughw devices
-      CAPTUREs="$(arecord -L | grep "^null\|^plughw\|^fepi.*capture" | tr '\n' '!' | sed 's/!$//')"
+      CAPTUREs="$(arecord -L | grep "^null\|^plughw\|^fepi" | tr '\n' '!' | sed 's/!$//')"
    fi
    echo "$CAPTUREs"
 }
+
+function restart () {
+	case $1 in
+		ardop)
+			if grep -q "^PIARDOPC_ARGS=.*--cat" $ARGS_CONFIG 2>/dev/null
+			then
+				if pgrep -f "rigctld.*-m 4" >/dev/null 2>&1
+				then
+					#restart rigctld
+					restart rigctldvcom
+				else
+					echo "ERROR! rigctld rig must be '4' (Flrig). ARDOP PTT disabled." | Sender "ardop"
+				fi	
+			fi
+			systemctl --user stop $(systemd-escape --template ${1}@.service "$ARGS_CONFIG")
+			sleep 1
+			systemctl --user start $(systemd-escape --template ${1}@.service "$ARGS_CONFIG")	 
+			;;
+		tnc)
+			systemctl --user stop $(systemd-escape --template tnc@.target "$ARGS_CONFIG")
+			sleep 1
+			systemctl --user start $(systemd-escape --template tnc@.target "$ARGS_CONFIG")	 
+			;;
+		*)
+			systemctl --user stop $(systemd-escape --template ${1}@.service "$ARGS_CONFIG")
+			sleep 1
+			systemctl --user start $(systemd-escape --template ${1}@.service "$ARGS_CONFIG")	 
+			;;
+	esac
+}
+
+function startStop () {
+	[[ -z $1 ]] && return 1
+	local TEXT=""
+	local BTN_TEXT=""
+	local TYPE=""
+	local CMD=""
+	local NAME=""
+	case $1 in
+		tnc)
+			TYPE='target'
+			STATE="$(systemctl --user show -p SubState --value $(systemd-escape \
+			--template ${1}@.$TYPE "$ARGS_CONFIG"))"
+			NAME="TNC (Direwolf+AX25)"
+			if [[ $STATE == "active" && \
+			$(systemctl --user show -p SubState --value $(systemd-escape \
+			--template direwolf@.service "$ARGS_CONFIG")) == "running" ]]
+			then
+				TEXT="is running"
+				CMD="stop"
+			else
+				TEXT="is not running"
+				CMD="start"
+			fi
+			;;
+		pat|ardop)
+			TYPE='service'
+			STATE="$(systemctl --user show -p SubState --value $(systemd-escape \
+			--template ${1}@.$TYPE "$ARGS_CONFIG"))"
+			if [[ $STATE == "running" ]]
+			then
+				TEXT="is running"
+				CMD="stop"
+			else
+				TEXT="is not running"
+				CMD="start"
+			fi
+			case $1 in
+				pat)
+					NAME="PAT"
+					;;
+				ardop)
+					NAME="ARDOP"
+					;;
+			esac
+			;;
+	esac
+	BTN_TEXT="${CMD^} ${1^^}"
+#	if systemctl --user is-active --quiet $(systemd-escape --template ${1}@.$TYPE "$ARGS_CONFIG")
+	if [[ $CMD == "start" ]]
+	then
+   	yad --info \
+   		--on-top \
+   		--title="$NAME" \
+   		--text-align=center \
+   		--buttons-layout=center \
+   		--borders=5 \
+   		--text="<b><span color='blue'>${NAME}</span><span color='red'> $TEXT</span></b>" \
+   		--button="<b>Cancel</b>":0 \
+   		--button="<b>$BTN_TEXT</b>":1
+	else
+   	yad --info \
+   		--on-top \
+   		--title="$NAME" \
+   		--text-align=center \
+   		--buttons-layout=center \
+   		--borders=5 \
+   		--text="<b><span color='blue'>${NAME}</span><span color='green'> $TEXT</span></b>" \
+   		--button="<b>Cancel</b>":0 \
+   		--button="<b>$BTN_TEXT</b>":1 \
+   		--button="<b>Restart ${1^^}</b>":2
+	fi
+	case $? in
+		1)
+			systemctl --user $CMD $(systemd-escape --template ${1}@.$TYPE "$ARGS_CONFIG")
+			RESULT=$?
+			if [[ $1 == "tnc" && $CMD == "start" && $(systemctl --user show -p SubState \
+				--value $(systemd-escape \
+				--template direwolf@.service "$ARGS_CONFIG")) != "running" ]]
+			then
+				systemctl --user start $(systemd-escape --template ${1}@.$TYPE "$ARGS_CONFIG")
+				RESULT=$?
+			fi
+			return $RESULT
+			;;
+		2)
+			systemctl --user stop $(systemd-escape --template ${1}@.$TYPE "$ARGS_CONFIG")
+			systemctl --user start $(systemd-escape --template ${1}@.$TYPE "$ARGS_CONFIG")
+			RESULT=$?
+			if [[ $1 == "tnc" && $(systemctl --user show -p SubState \
+				--value $(systemd-escape \
+				--template direwolf@.service "$ARGS_CONFIG")) != "running" ]]
+			then
+				systemctl --user start $(systemd-escape --template ${1}@.$TYPE "$ARGS_CONFIG")
+				if [[ $(systemctl --user show -p SubState \
+					--value $(systemd-escape \
+					--template direwolf@.service "$ARGS_CONFIG")) == "running" ]]
+				then
+					RESULT=0
+				else
+					RESULT=1
+				fi
+			fi
+			return $RESULT
+			;;
+		*)
+			return 0
+			;;
+	esac
+}
+
 
 #============================
 #  Startup Functions
@@ -138,8 +312,8 @@ function getCaptureDevices () {
 
 function setStartupDefaults () {
 		declare -gA STARTUP_default
-   	STARTUP_default[_PAT_START_]='TRUE'
    	STARTUP_default[_DIREWOLF_START_]='TRUE'
+   	STARTUP_default[_PAT_START_]='FALSE'
    	STARTUP_default[_ARDOP_START_]='FALSE'
    	STARTUP_default[_BOOTSTART_]='disabled'
 }
@@ -152,8 +326,8 @@ function loadStartupSettings () {
    	echo "Config file $GUI_STARTUP_CONFIG_FILE not found. Creating one." | Sender "manager"
 		setStartupDefaults
    	echo "declare -gA STARTUP" > "$GUI_STARTUP_CONFIG_FILE"
-      echo "STARTUP[_PAT_START_]='${STARTUP_default[_PAT_START_]}'" >> "$GUI_STARTUP_CONFIG_FILE"
       echo "STARTUP[_DIREWOLF_START_]='${STARTUP_default[_DIREWOLF_START_]}'" >> "$GUI_STARTUP_CONFIG_FILE"
+      echo "STARTUP[_PAT_START_]='${STARTUP_default[_PAT_START_]}'" >> "$GUI_STARTUP_CONFIG_FILE"
       echo "STARTUP[_ARDOP_START_]='${STARTUP_default[_ARDOP_START_]}'" >> "$GUI_STARTUP_CONFIG_FILE"
 		echo "STARTUP[_BOOTSTART_]='${STARTUP_default[_BOOTSTART_]}'" >> "$GUI_STARTUP_CONFIG_FILE"
 	fi
@@ -163,14 +337,12 @@ function loadStartupSettings () {
 }
 
 function updateStartupSettings () {
-	[[ -s $TMPDIR/CONFIGURE_STARTUP.txt ]] || Die "Unexpected input from dialog"
 	PREVIOUS_AUTOSTART="${STARTUP[_BOOTSTART_]}"
-	IFS='|' read -r -a TF < "$TMPDIR/CONFIGURE_STARTUP.txt"
   	echo "declare -gA STARTUP" > "$GUI_STARTUP_CONFIG_FILE"
-	echo "STARTUP[_PAT_START_]='${TF[0]}'" >> "$GUI_STARTUP_CONFIG_FILE"
-	echo "STARTUP[_DIREWOLF_START_]='${TF[1]}'" >> "$GUI_STARTUP_CONFIG_FILE"
-	echo "STARTUP[_ARDOP_START_]='${TF[2]}'" >> "$GUI_STARTUP_CONFIG_FILE"
-	echo "STARTUP[_BOOTSTART_]='${TF[3]}'" >> "$GUI_STARTUP_CONFIG_FILE"
+	echo "STARTUP[_DIREWOLF_START_]='${1}'" >> "$GUI_STARTUP_CONFIG_FILE"
+	echo "STARTUP[_PAT_START_]='${2}'" >> "$GUI_STARTUP_CONFIG_FILE"
+	echo "STARTUP[_ARDOP_START_]='${3}'" >> "$GUI_STARTUP_CONFIG_FILE"
+	echo "STARTUP[_BOOTSTART_]='${4}'" >> "$GUI_STARTUP_CONFIG_FILE"
 	source "$GUI_STARTUP_CONFIG_FILE"
 	# Make autostart piano switch script if necessary
 	if [[ ${STARTUP[_BOOTSTART_]} == "disabled" ]]
@@ -189,30 +361,34 @@ function updateStartupSettings () {
 			chmod +x $HOME/piano${SWITCHES}.sh
 		fi
 	fi
+	echo "Startup settings saved." | Sender "manager" 
 }
 
 function yadStartup () {
    CMD=(	
 		yad --plug="$ID" --tabnum=$1
 			--text="<b><big><big>Startup Configuration</big></big></b>\n\n \
-	Click the <b>Save...</b> button below after you make your changes.\n"
+	Click the <b>Save Startup settings</b> button below after you make your changes.\n"
 			--item-separator="!"
 			--separator="|"
 			--text-align=center
 			--align=right
 			--borders=10
+			--use-interp
 			--form
-			--columns=1
+			--columns=2
 			--focus-field 1
-			--field="Start pat when this manager [re]starts":CHK
-			--field="Start Direwolf when this manager [re]starts":CHK
-			--field="Start ARDOP when this manager [re]starts":CHK
+			--field="Start TNC (Direwolf+AX25)\nwhen this manager starts":CHK
+			--field="Start pat when\nthis manager starts":CHK
+			--field="Start ARDOP when\nthis manager starts":CHK
 			--field="Autostart this manager when\nthese piano switch levers are <b>ON</b>:":CB
+			--field="<b>Save Startup settings</b>":FBTN
 			--
-			"${STARTUP[_PAT_START_]}"
 			"${STARTUP[_DIREWOLF_START_]}"
+			"${STARTUP[_PAT_START_]}"
 			"${STARTUP[_ARDOP_START_]}"
 			"$BOOTSTARTs"
+			"$save_startup_settings_cmd"
 	)
 	"${CMD[@]}" > $TMPDIR/CONFIGURE_STARTUP.txt &
 	return $!
@@ -222,16 +398,36 @@ function yadStartup () {
 #  AX25 Functions
 #============================
 
+function updateAxports () {
+	# Requires 2 arguments:
+	#  arg1: port name (first column in $AX25PORTFILE)
+	#  arg2: call sign (second column in $AX25PORTFILE)
+	if ! grep -q "^${1}[[:space:]]*${2}[[:space:]]" $AX25PORTFILE 2>/dev/null
+	then # PORT CALL entry not found
+		# Remove existing lines with PORT
+		# Remove any lines with CALL
+		# Remove empty lines 
+		sudo sed -i -e "s/^${1}[[:space:]].*$//g" \
+			-e "s/^[[:alnum:]]*[[:space:]]*${2}[[:space:].*$//g" \
+			-e "s/^[[:space:]]*$/d" $AX25PORTFILE
+		# Add the entry for $PAT_CALL
+		echo "${1}	${2}	0	255	7	Added by TNC manager" | sudo tee --append $AX25PORTFILE >/dev/null
+		echo "axport file modified." | Sender "manager"
+	fi
+	argModify AX25_PORT=\"${1}\"
+}
+
 function setAX25Defaults () {
 	declare -gA AX25_default
-	AX25_default[_PORT_]="wl2k"		# AX25 port
+	AX25_default[_PORT_]="wl2k"	# AX25 port
    AX25_default[_TXDELAY_]="200"	# TX Delay
-	AX25_default[_TXTAIL_]="50"		# TX Tail
+   AX25_default[_TXTAIL_]="50"	# TX Tail
    AX25_default[_PERSIST_]="64"	# Persist
    AX25_default[_SLOTTIME_]="20"	# Slot Time
 }
 
 function loadAX25Defaults () {
+	setAX25Defaults
    echo "2:${AX25_default[_TXDELAY_]}"
 	echo "3:${AX25_default[_TXTAIL_]}"
    echo "4:${AX25_default[_PERSIST_]}"
@@ -256,36 +452,48 @@ function loadAX25Settings () {
 }
 
 function updateAX25Settings () {
-	[[ -s $TMPDIR/CONFIGURE_AX25.txt ]] || Die "Unexpected input from dialog"
-	IFS='|' read -r -a TF < "$TMPDIR/CONFIGURE_AX25.txt"
   	echo "declare -gA AX25" > "$GUI_AX25_CONFIG_FILE"
-	echo "AX25[_PORT_]='${TF[0]}'" >> "$GUI_AX25_CONFIG_FILE"
-	echo "AX25[_TXDELAY_]='${TF[1]}'" >> "$GUI_AX25_CONFIG_FILE"
-	echo "AX25[_TXTAIL_]='${TF[2]}'" >> "$GUI_AX25_CONFIG_FILE"
-	echo "AX25[_PERSIST_]='${TF[3]}'" >> "$GUI_AX25_CONFIG_FILE"
-	echo "AX25[_SLOTTIME_]='${TF[4]}'" >> "$GUI_AX25_CONFIG_FILE"
+	echo "AX25[_PORT_]='${1}'" >> "$GUI_AX25_CONFIG_FILE"
+	echo "AX25[_TXDELAY_]='${2}'" >> "$GUI_AX25_CONFIG_FILE"
+	echo "AX25[_TXTAIL_]='${3}'" >> "$GUI_AX25_CONFIG_FILE"
+	echo "AX25[_PERSIST_]='${4}'" >> "$GUI_AX25_CONFIG_FILE"
+	echo "AX25[_SLOTTIME_]='${5}'" >> "$GUI_AX25_CONFIG_FILE"
+	local PREVIOUS_PORT="${AX25[_PORT_]}"
 	source "$GUI_AX25_CONFIG_FILE"
+	if [[ "$PREVIOUS_PORT" != "$1" ]]
+	then
+		# Port has changed. Update pat and args
+		argModify AX25_PORT=\"${1}\"
+		cat $PAT_CONFIG | jq --arg O $1 '.ax25.port = $O' | sponge $PAT_CONFIG
+		local PAT_CALL="$(jq -r ".mycall" $PAT_CONFIG)"
+		updateAxports "${AX25[_PORT_]}" "${PAT_CALL}"
+		echo "pat settings saved and axports updated." | Sender "manager"
+	else
+		echo "pat settings saved." | Sender "manager"
+	fi
+	argModify KISSPARMS_ARGS=\"-c 1 -p \$AX25_PORT -t $2 -l $3 -s $4 -r $5 -f n\"
 }
 
 function yadAX25 () {
    CMD=(	
 		yad --plug="$ID" --tabnum=$1
-			--text="<b><big><big>AX25 Configuration</big></big></b>\n\n \
-	Click the <b>Save...</b> button below after you make your changes.\n"
+			--text="<b><big><big>AX25 Timer Configuration</big></big></b>\n\n \
+	Click the <b>Save and Apply Settings</b> button after you make your changes.\n"
 			--item-separator="!"
 			--separator="|"
 			--text-align=center
 			--align=right
 			--borders=20
 			--form
-			--columns=1
+			--columns=2
 			--focus-field 1 
-			--field="<b>AX25 Port</b>"
+			--field="<b>Port name</b>"
 			--field="<b>TX Delay</b> (ms)":NUM
 			--field="<b>TX Tail</b> (ms)":NUM
 			--field="<b>Persist</b>":NUM
 			--field="<b>Slot Time</b> (ms)":NUM
 			--field="<b>Load Default AX25 Timers</b>":FBTN
+	      --field="<b>Save and Apply Settings</b>":FBTN
 			--
 			"${AX25[_PORT_]}"
 			"${AX25[_TXDELAY_]}!0..500!1!"
@@ -293,30 +501,10 @@ function yadAX25 () {
 			"${AX25[_PERSIST_]}!0..255!1!"
 			"${AX25[_SLOTTIME_]}!0..255!10!"
 			"$load_ax25_defaults_cmd"
+	      "$save_ax25_settings_cmd"
 	)
 	"${CMD[@]}" > $TMPDIR/CONFIGURE_AX25.txt &
 	return $!
-}
-
-function restartAX25 () {
-	local PORT="${1:wl2k}"
-	sudo ifconfig ax0 down 2>/dev/null
-	sudo pkill kissattach >/dev/null 2>&1
-	#sudo ifconfig ax0 up
-	echo "Starting kissattach: sudo $(command -v kissattach) $(readlink -f /tmp/kisstnc) $PORT" | Sender "kissattach"
-	sudo $(command -v kissattach) $(readlink -f /tmp/kisstnc) $PORT 2>&1 | Sender "kissattach"
-	if [ ${PIPESTATUS[0]} -ne 0 ]
-	then
-		echo "kissattach FAILED." | Sender "kissattach"
-		return 1
-	fi
-	return 0
-}
-
-function setKISSParms () {
-	[[ -z "$1" ]] && return 1
-	sudo $(command -v kissparms) $1 2>&1 | Sender "kissparms"
-	[ ${PIPESTATUS[0]} -eq 0 ] && return 0 || return 1
 }
 
 #============================
@@ -330,6 +518,12 @@ function setARDOPDefaults () {
    ARDOP_default[_PTT_]="GPIO 12"				# GPIO PTT (BCM pin)
    ARDOP_default[_PORT_]="8515"					# ARDOP Port
    ARDOP_default[_ARGUMENTS_]="--logdir=/dev/null" # Optional piardopc arguments
+}
+
+function loadARDOPDefaults () {
+	setARDOPDefaults
+	echo "4:${ARDOP_default[_PORT_]}"
+	echo "5:${ARDOP_default[_ARGUMENTS_]}"
 }
 
 function loadARDOPSettings () {
@@ -354,7 +548,10 @@ function loadARDOPSettings () {
    [[ -n ${ARDOP[_PLAYBACK_]} && $ARDOP_PLAYBACKs =~ ${ARDOP[_PLAYBACK_]} ]] && ARDOP_PLAYBACKs="$(echo "$ARDOP_PLAYBACKs" | sed "s/${ARDOP[_PLAYBACK_]}/\^${ARDOP[_PLAYBACK_]}/")"
    [[ $ARDOP_PLAYBACKs == "" ]] && ARDOP_PLAYBACKs="null"
    ARDOP_PTTs="GPIO 12!GPIO 23!rigctld network!Client handles PTT"
-  	if [[ $ARDOP_PTTs =~ ${ARDOP[_PTT_]} ]]
+   if [[ -z ${ARDOP[_PTT_]} ]]
+   then
+   	ARDOP_PTTs="$(echo "$ARDOP_PTTs" | sed "s/Client handles PTT/\^Client handles PTT/")"
+  	elif [[ $ARDOP_PTTs =~ ${ARDOP[_PTT_]} ]]
    then
       ARDOP_PTTs="$(echo "$ARDOP_PTTs" | sed "s/${ARDOP[_PTT_]}/\^${ARDOP[_PTT_]}/")"
    else
@@ -363,15 +560,30 @@ function loadARDOPSettings () {
 }
 
 function updateARDOPSettings () {
-	[[ -s $TMPDIR/CONFIGURE_ARDOP.txt ]] || Die "Unexpected input from dialog"
-	IFS='|' read -r -a TF < "$TMPDIR/CONFIGURE_ARDOP.txt"
   	echo "declare -gA ARDOP" > "$GUI_ARDOP_CONFIG_FILE"
-	echo "ARDOP[_CAPTURE_]='${TF[0]}'" >> "$GUI_ARDOP_CONFIG_FILE"
-	echo "ARDOP[_PLAYBACK_]='${TF[1]}'" >> "$GUI_ARDOP_CONFIG_FILE"
-	echo "ARDOP[_PTT_]='${TF[2]}'" >> "$GUI_ARDOP_CONFIG_FILE"
-	echo "ARDOP[_PORT_]='${TF[3]}'" >> "$GUI_ARDOP_CONFIG_FILE"
-	echo "ARDOP[_ARGUMENTS_]='${TF[4]}'" >> "$GUI_ARDOP_CONFIG_FILE"
+	echo "ARDOP[_CAPTURE_]='${1}'" >> "$GUI_ARDOP_CONFIG_FILE"
+	echo "ARDOP[_PLAYBACK_]='${2}'" >> "$GUI_ARDOP_CONFIG_FILE"
+	echo "ARDOP[_PTT_]='${3}'" >> "$GUI_ARDOP_CONFIG_FILE"
+	echo "ARDOP[_PORT_]='${4}'" >> "$GUI_ARDOP_CONFIG_FILE"
+	echo "ARDOP[_ARGUMENTS_]='${5}'" >> "$GUI_ARDOP_CONFIG_FILE"
 	source "$GUI_ARDOP_CONFIG_FILE"
+	echo "ARDOP settings saved." | Sender "manager" 
+	local PIARDOPC_ARGS="${ARDOP[_PORT_]} ${ARDOP[_CAPTURE_]} ${ARDOP[_PLAYBACK_]}"
+	[[ -n ${ARDOP[_ARGUMENTS_]} ]] && PIARDOPC_ARGS+=" ${ARDOP[_ARGUMENTS_]}"
+	[[ ${ARDOP[_PTT_]} =~ GPIO ]] && PIARDOPC_ARGS+=" -g=${ARDOP[_PTT_]#* }"
+	if [[ ${ARDOP[_PTT_]} =~ rigctld ]]
+	then
+#		if lsof -t -i tcp:$RIGCTLD_PORT 2>&1 >/dev/null
+#		then
+			PIARDOPC_ARGS+=" --cat=${VIRTUAL_COM} -k $RIGCTL_PTT_ON -u $RIGCTL_PTT_OFF"	
+#		else
+#			# rigctld isn't running so no point in setting up virtual com port
+#			echo "ERROR! rigctld not listening on TCP $RIGCTLD_PORT. Rig type must be '4'. ARDOP PTT disabled." | Sender "manager"
+#		fi
+	fi
+	cat $PAT_CONFIG | jq \
+		--arg R "127.0.0.1:${ARDOP[_PORT_]}" '.ardop.addr = $R' | sponge $PAT_CONFIG
+	argModify PIARDOPC_ARGS=\"$PIARDOPC_ARGS\"
 }
 
 function yadARDOP () {
@@ -383,19 +595,22 @@ function yadARDOP () {
 <b>fepi-capture-left</b> and <b>fepi-playback-left</b> and PTT <b>GPIO 12</b>.\n \
 <span color='blue'><b>RIGHT Radio:</b></span> Use Audio \
 <b>fepi-capture-right</b> and <b>fepi-playback-right</b> and PTT <b>GPIO 23</b>.\n\n \
-Click the <b>Save...</b> button below after you make your changes.\n"
+Click the <b>Save and Apply settings</b> button below after you make your changes.\n"
 		--item-separator="!"
 		--separator="|"
   		--text-align=center
   		--align=right
   		--borders=10
+		--use-interp
   		--form
-		--columns=1
+		--columns=2
   	  	--field="<b>Audio Capture</b>":CB
   	  	--field="<b>Audio Playback</b>":CB
   	  	--field="<b>PTT</b>":CB
    	--field="<b>Port</b>":NUM
 		--field="<b>piardopc</b> arguments\n(Usually not needed)":TEXT
+		--field="<b>Load Defaults</b>":FBTN		
+		--field="<b>Save and Apply Settings</b>":FBTN
   	  	--focus-field 1
 		--
 		"$ARDOP_CAPTUREs"
@@ -403,6 +618,8 @@ Click the <b>Save...</b> button below after you make your changes.\n"
 		"$ARDOP_PTTs"
 		"${ARDOP[_PORT_]}!8510..8519!1!"
 		"${ARDOP[_ARGUMENTS_]}"
+		"$load_ardop_defaults_cmd"
+		"$save_ardop_settings_cmd"
 	)
   	"${CMD[@]}" > $TMPDIR/CONFIGURE_ARDOP.txt &
   	return $!
@@ -418,23 +635,37 @@ function setDirewolfDefaults () {
    DW_default[_MODEM_]="1200" 	# Modem
    DW_default[_ADEVICE_CAPTURE_]="null"	# Audio capture interface (ADEVICE)
    DW_default[_ADEVICE_PLAY_]="null" 		# Audio playback interface (ADEVICE)
-   DW_default[_ARATE_]="48000" 	# Audio playback rate (ARATE)
+   DW_default[_ACHANNELS_]='1'
+   DW_default[_CHANNEL_]='0'
    DW_default[_PTT_]="GPIO 23" 	# GPIO PTT (BCM pin)
    DW_default[_AGWPORT_]="8001" 	# AGW Port
    DW_default[_KISSPORT_]="8011" # KISS Port
-   DW_default[_AUDIOSTATS_]=0		# Audio stats print interval
-   DW_default[_COLORS_]=0			# Terminal print colors
-   DW_default[_CDIGIPEAT_]=''		# CDIGIPEAT arguments
+   DW_default[_CDIGIPEAT_]='0 0'		# CDIGIPEAT arguments
    DW_default[_CFILTER_]=''		# CFILTER arguments
+   DW_default[_CBEACON_]='delay=1 every=15 info="Nexus DR-X custom digipeater"' # CBEACON arguments
+   DW_default[_ARGS_]='-r 48000 -t 2 -d uo' # Command line arguments
+   echo "Set Direwolf defaults" | Sender "manager"
 }
 
+function loadDirewolfDefaults () {
+	setDirewolfDefaults
+   #echo "1:${DW_default[_CALL_]}"
+   #echo "2:${DW_default[_ADEVICE_CAPTURE_]}"
+	#echo "3:${DW_default[_ADEVICE_PLAY_]}"
+   #echo "4:${DW_default[_ACHANNELS_]}"
+   #echo "5:${DW_default[_CHANNEL_]}"
+   #echo "6:${DW_default[_PTT_]}"
+   #echo "7:${DW_default[_MODEM_]}"
+   echo "8:${DW_default[_AGWPORT_]}"
+   echo "9:${DW_default[_KISSPORT_]}"
+   echo "10:${DW_default[_CDIGIPEAT_]}"
+   echo "11:${DW_default[_CFILTER_]}"
+   echo "12:${DW_default[_CBEACON_]}"
+   echo "13:${DW_default[_ARGS_]}"
+}
+
+
 function loadDirewolfSettings () {
-	 
-	MODEMs="300!1200!2400!4800!9600"
-   ARATEs="48000!96000"
-   #ARATEs="48000"
-   PTTs="GPIO 12!GPIO 23!RIG 2 localhost:4532"
-	DW_CONFIG="$TMPDIR/direwolf.conf"
 
 	if [ -s "$GUI_DIREWOLF_CONFIG_FILE" ]
 	then # There is a config file
@@ -447,16 +678,25 @@ function loadDirewolfSettings () {
    	echo "DW[_MODEM_]='${DW_default[_MODEM_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_ADEVICE_CAPTURE_]='${DW_default[_ADEVICE_CAPTURE_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_ADEVICE_PLAY_]='${DW_default[_ADEVICE_PLAY_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-   	echo "DW[_ARATE_]='${DW_default[_ARATE_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+   	echo "DW[_ACHANNELS_]='${DW_default[_ACHANNELS_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+   	echo "DW[_CHANNEL_]='${DW_default[_CHANNEL_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_PTT_]='${DW_default[_PTT_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-   	echo "DW[_AUDIOSTATS_]='${DW_default[_AUDIOSTATS_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_AGWPORT_]='${DW_default[_AGWPORT_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_KISSPORT_]='${DW_default[_KISSPORT_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-   	echo "DW[_COLORS_]='${DW_default[_COLORS_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_CDIGIPEAT_]='${DW_default[_CDIGIPEAT_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_CFILTER_]='${DW_default[_CFILTER_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+   	echo "DW[_CBEACON_]='${DW_default[_CBEACON_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+   	echo "DW[_ARGS_]='${DW_default[_ARGS_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
 	fi
   	source "$GUI_DIREWOLF_CONFIG_FILE"
+	MODEMs="300!1200!2400!4800!9600"
+	ACHANNELSs="1!2"
+	[[ $ACHANNELSs =~ ${DW[_ACHANNELS_]} ]] && ACHANNELSs="$(echo "$ACHANNELSs" | sed "s/${DW[_ACHANNELS_]}/\^${DW[_ACHANNELS_]}/")"
+	CHANNELs="0!1"
+	[[ $CHANNELs =~ ${DW[_CHANNEL_]} ]] && CHANNELs="$(echo "$CHANNELs" | sed "s/${DW[_CHANNEL_]}/\^${DW[_CHANNEL_]}/")"
+   #ARATEs="48000!96000"
+   #ARATEs="48000"
+   PTTs="GPIO 12!GPIO 23!RIG 2 localhost:4532"
 	MYCALL="${DW[_CALL_]}"
    [[ $MODEMs =~ ${DW[_MODEM_]} ]] && MODEMs="$(echo "$MODEMs" | sed "s/${DW[_MODEM_]}/\^${DW[_MODEM_]}/")"
    ADEVICE_CAPTUREs="$(getCaptureDevices)"
@@ -466,7 +706,7 @@ function loadDirewolfSettings () {
    [[ -n ${DW[_ADEVICE_PLAY_]} && $ADEVICE_PLAYBACKs =~ ${DW[_ADEVICE_PLAY_]} ]] && ADEVICE_PLAYBACKs="$(echo "$ADEVICE_PLAYBACKs" | sed -e "s/${DW[_ADEVICE_PLAY_]}/\^${DW[_ADEVICE_PLAY_]}/")"
    [[ $ADEVICE_PLAYBACKs == "" ]] && ADEVICE_PLAYBACKs="null"
 
-   [[ $ARATEs =~ ${DW[_ARATE_]} ]] && ARATEs="$(echo "$ARATEs" | sed -e "s/${DW[_ARATE_]}/\^${DW[_ARATE_]}/")"
+   #[[ $ARATEs =~ ${DW[_ARATE_]} ]] && ARATEs="$(echo "$ARATEs" | sed -e "s/${DW[_ARATE_]}/\^${DW[_ARATE_]}/")"
 
 	if [[ $PTTs =~ ${DW[_PTT_]} ]]
    then
@@ -475,27 +715,62 @@ function loadDirewolfSettings () {
       PTTs+="!^${DW[_PTT_]}"
    fi
 	
-	AUDIOSTATs="0!15!30!45!60!90!120"
-   [[ $AUDIOSTATs =~ ${DW[_AUDIOSTATS_]} ]] && AUDIOSTATs="$(echo "$AUDIOSTATs" | sed -e "s/${DW[_AUDIOSTATS_]}/\^${DW[_AUDIOSTATS_]}/")"
+	#AUDIOSTATs="0!15!30!45!60!90!120"
+   #[[ $AUDIOSTATs =~ ${DW[_AUDIOSTATS_]} ]] && AUDIOSTATs="$(echo "$AUDIOSTATs" | sed -e "s/${DW[_AUDIOSTATS_]}/\^${DW[_AUDIOSTATS_]}/")"
 
 	AGWPORT="${DW[_AGWPORT_]}"
 	KISSPORT="${DW[_KISSPORT_]}"
-	CDIGIPEAT="${DW[_CDIGIPEAT_]}"
-	CFILTER="${DW[_CFILTER_]}"
-	if [[ -n $CDIGIPEAT ]]
+
+}
+
+function updateDirewolfSettings () {
+  	echo "declare -gA DW" > "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_CALL_]='${1^^}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_ADEVICE_CAPTURE_]='${2}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_ADEVICE_PLAY_]='${3}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_ACHANNELS_]='${4}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_CHANNEL_]='${5}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_PTT_]='${6}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_MODEM_]='${7}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_AGWPORT_]='${8}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_KISSPORT_]='${9}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_CDIGIPEAT_]='${10}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_CFILTER_]='${11}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_CBEACON_]='${12}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	echo "DW[_ARGS_]='${13}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	source "$GUI_DIREWOLF_CONFIG_FILE"
+	# Create a Direwolf config file with these settings
+	makeDirewolfConfig
+	local REGEX=' -c'
+	if [[ ${DW[_ARGS_]} =~ $REGEX ]]
+	then # User has specified a custom direwolf configuration file
+		DIREWOLF_ARGS="${DW[_ARGS_]}"
+	else # Configuration file created by this manager will be used
+		DIREWOLF_ARGS="${DW[_ARGS_]} -c $DW_CONFIG"
+	fi
+	argModify DIREWOLF_ARGS=\"$DIREWOLF_ARGS\"
+	echo "Direwolf settings saved." | Sender "manager" 
+}
+
+function makeDirewolfConfig () {
+	if [[ -n ${DW[_CDIGIPEAT_]} ]]
 	then
-		CDIGIPEAT_CMD="CDIGIPEAT $CDIGIPEAT"
-		[[ -n $CFILTER ]] && CFILTER_CMD="CFILTER $CFILTER" || CFILTER_CMD='' 
+		CDIGIPEAT_CMD="CDIGIPEAT ${DW[_CDIGIPEAT_]}"
+		[[ -n ${DW[_CFILTER_]} ]] && CFILTER_CMD="CFILTER ${DW[_CFILTER_]}" || CFILTER_CMD='' 
 	else
 		CDIGIPEAT_CMD=''
 		CFILTER_CMD=''
 	fi
-	# Create a Direwolf config file with these settings
+	if [[ -n ${DW[_CBEACON_]} ]]
+	then
+		CBEACON_CMD="CBEACON ${DW[_CBEACON_]}"
+	else
+		CBEACON_CMD=''
+	fi
 	cat > $DW_CONFIG <<EOF
 ADEVICE ${DW[_ADEVICE_CAPTURE_]} ${DW[_ADEVICE_PLAY_]}
-ACHANNELS 1
-CHANNEL 0
-ARATE ${DW[_ARATE_]}
+ACHANNELS ${DW[_ACHANNELS_]}
+CHANNEL ${DW[_CHANNEL_]}
 PTT ${DW[_PTT_]}
 MYCALL ${DW[_CALL_]}
 MODEM ${DW[_MODEM_]}
@@ -503,38 +778,20 @@ AGWPORT ${DW[_AGWPORT_]}
 KISSPORT ${DW[_KISSPORT_]}
 $CDIGIPEAT_CMD
 $CFILTER_CMD
+$CBEACON_CMD
 EOF
 }
 
-function updateDirewolfSettings () {
-	[[ -s $TMPDIR/CONFIGURE_DIREWOLF.txt ]] || Die "Unexpected input from dialog"
-	IFS='|' read -r -a TF < "$TMPDIR/CONFIGURE_DIREWOLF.txt"
-  	echo "declare -gA DW" > "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_CALL_]='${TF[0]^^}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_ADEVICE_CAPTURE_]='${TF[1]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_ADEVICE_PLAY_]='${TF[2]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_ARATE_]='${TF[3]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_MODEM_]='${TF[4]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_PTT_]='${TF[5]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_AUDIOSTATS_]='${TF[6]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_AGWPORT_]='${TF[7]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_KISSPORT_]='${TF[8]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_COLORS_]='${TF[9]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_CDIGIPEAT_]='${TF[10]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	echo "DW[_CFILTER_]='${TF[11]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
-	source "$GUI_DIREWOLF_CONFIG_FILE"
-}
 
 function yadDirewolf () {
    CMD=(
 		yad --plug="$ID" --tabnum=$1
-			--text="<b><big><big>Direwolf Configuration</big></big></b>\n\n \
-<b><u><big>Typical Direwolf Sound Card and PTT Settings for Nexus DR-X</big></u></b>\n \
-<span color='blue'><b>LEFT Radio:</b></span> Use ADEVICEs \
+			--text="<b><big><big>Direwolf Configuration</big></big></b>\n \
+<span color='blue'><b>For Fe-Pi LEFT Radio:</b></span> Use <i>mono</i> ADEVICEs \
 <b>fepi-capture-left</b> and <b>fepi-playback-left</b> and PTT <b>GPIO 12</b>.\n \
-<span color='blue'><b>RIGHT Radio:</b></span> Use ADEVICEs \
-<b>fepi-capture-right</b> and <b>fepi-playback-right</b> and PTT <b>GPIO 23</b>.\n\n \
-Click the <b>Save...</b> button below after you make your changes.\n"
+<span color='blue'><b>For Fe-Pi RIGHT Radio:</b></span> Use <i>mono</i> ADEVICEs \
+<b>fepi-capture-right</b> and <b>fepi-playback-right</b> and PTT <b>GPIO 23</b>.\n \
+Click the <b>Save and Apply Settings</b> button below after you make your changes.\n"
 			--item-separator="!"
 			--separator="|"
 			--text-align=center
@@ -542,54 +799,42 @@ Click the <b>Save...</b> button below after you make your changes.\n"
 			--borders=10
 			--form
 			--columns=2
+			--use-interp
 			--focus-field 1
 			--field="<b>Call Sign</b>"
 			--field="<b>ADEVICE Capture</b>":CB
 			--field="<b>ADEVICE Playback</b>":CB
-			--field="<b>Direwolf ARATE</b>":CB
-			--field="<b>Direwolf MODEM</b>":CB
-			--field="<b>Direwolf PTT</b>":CBE
-			--field="<b>Audio Stats interval (s)</b>":CB
+  			--field="<b>ACHANNELS</b>: <b>1</b> for mono\nADEVICE; <b>2</b> for stereo":CB
+  			--field="<b>CHANNEL</b>: <b>0</b> for mono or\nstereo left; <b>1</b> for stereo right":CB  
+			--field="<b>PTT</b>":CBE
+  			--field="<b>MODEM</b>":CB 
 			--field="<b>AGW Port</b>":NUM
 			--field="<b>KISS Port</b>":NUM
-			--field="<b>Text colors</b> (0=off)":NUM
-			--field="Optional <b>CDIGIPEAT</b> arguments\n(Format&#x3A; <b>0 0</b> [<i>aliases</i>])"
-			--field="Optional <b>CFILTER</b> arguments\n(Format&#x3A; <b>0 0</b> <i>filter-expression</i>)"
+			--field="<b>CDIGIPEAT</b>"
+			--field="<b>CFILTER</b>"
+			--field="<b>CBEACON</b>"
+			--field="Arguments"
+			--field="<b>Load Defaults</b>":FBTN
+			--field="<b>Save and Apply Settings</b>":FBTN
 			--
 			"$MYCALL"
 			"$ADEVICE_CAPTUREs"
 			"$ADEVICE_PLAYBACKs"
-			"$ARATEs"
-			"$MODEMs"
+			"$ACHANNELSs"
+			"$CHANNELs"
 			"$PTTs"
-			"$AUDIOSTATs"
+			"$MODEMs"
 			"$AGWPORT!8001..8010!1!"
 			"$KISSPORT!8011..8020!1!"
-			"${DW[_COLORS_]}~0..4~1~"
-			"$CDIGIPEAT"
-			"$CFILTER"
+			"${DW[_CDIGIPEAT_]}"
+			"${DW[_CFILTER_]}"
+			"${DW[_CBEACON_]}"
+			"${DW[_ARGS_]}"
+			"$load_direwolf_defaults_cmd"
+			"$save_direwolf_settings_cmd"
 	)
 	"${CMD[@]}" > $TMPDIR/CONFIGURE_DIREWOLF.txt &
 	return $!
-}
-
-function waitForPTY () {
-	# Wait for Direwolf to allocate a PTY
-	local COUNTER=0
-	local MAXWAIT=50
-	while [ $COUNTER -lt $MAXWAIT ]
-	do # Allocate a PTY to ax25
-		[ -L /tmp/kisstnc ] && break
-		sleep 0.1
-		let COUNTER=COUNTER+1
-	done
-	if [ $COUNTER -ge $MAXWAIT ]
-	then
-		echo "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?" | Sender "direwolf"
-		return 1
-	fi
-	echo "Direwolf has allocated a PTY." | Sender "direwolf"
-	return 0
 }
 
 #============================
@@ -614,8 +859,18 @@ function editPatPassword () {
 	[[ $? == 0 ]] && echo "2:${NEW_PASSWD%%|*}" || echo "2:$PASSWD"
 }
 
-
 function loadPatSettings () {
+	if [ -s "$GUI_PAT_CONFIG_FILE" ]
+	then # There is a config file
+   	echo "$GUI_PAT_CONFIG_FILE found." | Sender "manager"
+	else # Set some default values (dummy rig) in a new config file
+   	echo "Config file $GUI_DIREWOLF_CONFIG_FILE not found. Creating one." | Sender "manager"
+		echo "PAT_AX25_LISTEN='FALSE'" > "$GUI_PAT_CONFIG_FILE"
+		echo "PAT_TELNET_LISTEN='FALSE'" >> "$GUI_PAT_CONFIG_FILE"
+		echo "PAT_ARDOP_LISTEN='FALSE'" >> "$GUI_PAT_CONFIG_FILE"
+	fi
+	source "$GUI_PAT_CONFIG_FILE"
+	
 	PAT_CALL="$(jq -r ".mycall" $PAT_CONFIG)"
 	PAT_PASSWORD="$(jq -r ".secure_login_password" $PAT_CONFIG)"
 	PAT_HTTP_PORT="$(jq -r ".http_addr" $PAT_CONFIG | cut -d: -f2)"
@@ -636,25 +891,38 @@ function loadPatSettings () {
 	PAT_ARDOP_BEACON_INTERVAL="$(jq -r ".ardop.beacon_interval" $PAT_CONFIG)"
 	PAT_CW_ID="$(jq -r ".ardop.cwid_enabled" $PAT_CONFIG)"
 	PAT_ARDOP_PTT="$(jq -r ".ardop.ptt_ctrl" $PAT_CONFIG)"
+	local ARGS=""
+	[[ $PAT_AX25_LISTEN == TRUE ]] && ARGS+="ax25,"
+	[[ $PAT_TELNET_LISTEN == TRUE ]] && ARGS+="telnet,"
+	[[ $PAT_ARDOP_LISTEN == TRUE ]] && ARGS+="ardop"
+	if [[ -n $ARGS ]]
+	then
+		argModify PAT_ARGS=\"-l $ARGS http\"
+	else
+		argModify PAT_ARGS=\"http\"
+	fi
 }
 
 function updatePatSettings () {
 	# Update the pat config.json file with the new data.
-	[[ -s $TMPDIR/CONFIGURE_PAT.txt ]] || Die "Unexpected input from dialog"
-	IFS='|' read -r -a TF < "$TMPDIR/CONFIGURE_PAT.txt"
-	PAT_CALL="${TF[0]^^}"
-	PAT_PASSWORD="${TF[1]}"
-	PAT_LOCATOR="${TF[3]^^}"
-	PAT_HTTP_PORT="${TF[4]}"
-	PAT_TELNET_PORT="${TF[5]}"
-	PAT_TELNET_PASSWD="${TF[6]}"
-	PAT_AX25_BEACON_INTERVAL="${TF[7]}"
-	PAT_AX25_BEACON_MESSAGE="${TF[8]}"
-	PAT_ARQ_BW_FORCED="${TF[9]}"
-	PAT_ARQ_BW_MAX="${TF[10]}"
-	PAT_ARDOP_BEACON_INTERVAL="${TF[11]}"
-	PAT_CW_ID="${TF[12]}"
-	PAT_ARDOP_PTT="${TF[13]}"
+	local PAT_CALL_PREVIOUS="$(jq -r ".mycall" $PAT_CONFIG)"
+	local PAT_AX25_PORT="$(jq -r ".ax25.port" $PAT_CONFIG)"
+	PAT_CALL="${1^^}"
+	PAT_PASSWORD="${2}"
+	PAT_LOCATOR="${3^^}"
+	PAT_HTTP_PORT="${4}"
+	PAT_TELNET_PORT="${5}"
+	PAT_TELNET_PASSWD="${6}"
+	PAT_AX25_BEACON_INTERVAL="${7}"
+	PAT_AX25_BEACON_MESSAGE="${8}"
+	PAT_AX25_LISTEN="${9}"
+	PAT_TELNET_LISTEN="${10}"
+	PAT_ARDOP_LISTEN="${11}"
+	PAT_ARQ_BW_FORCED="${12}"
+	PAT_ARQ_BW_MAX="${13}"
+	PAT_ARDOP_BEACON_INTERVAL="${14}"
+	PAT_CW_ID="${15}"
+	PAT_ARDOP_PTT="${16}"
 	cat $PAT_CONFIG | jq \
 		--arg C "$PAT_CALL" \
 		--arg P "$PAT_PASSWORD" \
@@ -664,44 +932,65 @@ function updatePatSettings () {
 		--arg L "$PAT_LOCATOR" \
 		--argjson X $PAT_AX25_BEACON_INTERVAL \
 		--arg M "$PAT_AX25_BEACON_MESSAGE" \
-		--arg R "127.0.0.1:${ARDOP[_PORT_]}" \
 		--argjson F ${PAT_ARQ_BW_FORCED,,} \
 		--argjson B $PAT_ARQ_BW_MAX \
 		--argjson D ${PAT_CW_ID,,} \
 		--argjson K ${PAT_ARDOP_PTT,,} \
 		--argjson I $PAT_ARDOP_BEACON_INTERVAL \
-			'.mycall = $C | .secure_login_password = $P | .http_addr = $H | .ardop.addr = $R | .telnet.listen_addr = $T | .telnet.password = $A |.locator = $L | .ax25.beacon.every = $X | .ax25.beacon.message = $M | .ardop.beacon_interval = $I | .ardop.arq_bandwidth.Max = $B | .ardop.arq_bandwidth.Forced = $F | .ardop.cwid_enabled = $D | .ardop.ptt_ctrl = $K' | sponge $PAT_CONFIG
+			'.mycall = $C | .secure_login_password = $P | .http_addr = $H | .telnet.listen_addr = $T | .telnet.password = $A |.locator = $L | .ax25.beacon.every = $X | .ax25.beacon.message = $M | .ardop.beacon_interval = $I | .ardop.arq_bandwidth.Max = $B | .ardop.arq_bandwidth.Forced = $F | .ardop.cwid_enabled = $D | .ardop.ptt_ctrl = $K' | sponge $PAT_CONFIG
+	[[ $PAT_CALL_PREVIOUS != $PAT_CALL ]] && updateAxports "${PAT_AX25_PORT}" "${PAT_CALL}"
+	echo "PAT_AX25_LISTEN='$PAT_AX25_LISTEN'" > "$GUI_PAT_CONFIG_FILE"
+	echo "PAT_TELNET_LISTEN='$PAT_TELNET_LISTEN'" >> "$GUI_PAT_CONFIG_FILE"
+	echo "PAT_ARDOP_LISTEN='$PAT_ARDOP_LISTEN'" >> "$GUI_PAT_CONFIG_FILE"
+	source "$GUI_PAT_CONFIG_FILE"
+	local ARGS=""
+	[[ $PAT_AX25_LISTEN == TRUE ]] && ARGS+="ax25,"
+	[[ $PAT_TELNET_LISTEN == TRUE ]] && ARGS+="telnet,"
+	[[ $PAT_ARDOP_LISTEN == TRUE ]] && ARGS+="ardop"
+	if [[ -n $ARGS ]]
+	then
+		argModify PAT_ARGS=\"-l $ARGS http\"
+	else
+		argModify PAT_ARGS=\"http\"
+	fi
+	cat > $TMPDIR/pat_web.sh <<EOF
+xdg-open http://localhost:$PAT_HTTP_PORT >/dev/null 2>&1
+EOF
+	echo "pat settings saved." | Sender "manager"
 }
 
 function yadPat () {
    CMD=(	
 		yad --plug="$ID" --tabnum=$1
 			--text="<b><big><big>pat Configuration</big></big></b>\n \
-	Click the <b>Save...</b> button below after you make your changes."
+	Click the <b>Save and Apply Settings</b> button below after you make your changes."
 			--item-separator="!"
 			--separator="|"
 			--text-align=center
 			--align=right
 			--borders=10
 			--form
-			--columns=2
+			--columns=3
 			--focus-field 1 
 			--field="Call Sign"
 			--field="Winlink Password":H
-			--field="<b>Edit Winlink Password in visible text</b>":FBTN
+			--field="<b>Edit Password in visible text</b>":FBTN
 			--field="Locator Code"
 			--field="Web Service Port":NUM
-			--field="Telnet Service Port":NUM
-			--field="Telnet Service Password\n(default&#x3A; no password)"
+			--field="Telnet Service\nPort":NUM
+			--field="Telnet Service\nPassword"
 			--field="Packet Beacon Interval\n(s) (0 disables beacon)":NUM
 			--field="Packet Beacon Message"
+			--field="Enable AX25 listener":CHK
+			--field="Enable Telnet listener":CHK
+			--field="Enable ARDOP listener":CHK
 			--field="ARDOP Forced ARQ Bandwidth":CHK
 			--field="ARDOP Max ARQ\nBandwidth (Hz)":CB
 			--field="ARDOP Beacon Interval\n(seconds), 0 disables":NUM
 			--field="ARDOP: Enable CW ID":CHK
 			--field="ARDOP: pat controls PTT":CHK
-			--field='':LBL
-			--field="<b>Edit pat Connection Aliases</b>":FBTN
+			--field="<b>Edit Connection Aliases</b>":FBTN
+			--field="<b>Save and Apply Settings</b>":FBTN
 			--
 			"$PAT_CALL"
 			"$PAT_PASSWORD"
@@ -712,86 +1001,53 @@ function yadPat () {
 			"$PAT_TELNET_PASSWD"
 			"$PAT_AX25_BEACON_INTERVAL!0..7200!1!"
 			"$PAT_AX25_BEACON_MESSAGE"
+			"$PAT_AX25_LISTEN"
+			"$PAT_TELNET_LISTEN"
+			"$PAT_ARDOP_LISTEN"
 			"$PAT_ARQ_BW_FORCED"
 			"$PAT_ARQ_BW_MAXs"
 			"$PAT_ARDOP_BEACON_INTERVAL!0..7200!1!"
 			"$PAT_CW_ID"
 			"$PAT_ARDOP_PTT"
-			''
 			"bash -c edit_pat_aliases.sh &"
+			"$save_pat_settings_cmd"
 	)		
 	"${CMD[@]}" > $TMPDIR/CONFIGURE_PAT.txt &
 	return $!
 }
 
-function restartPat () {
-	local RUNNING_PID=''
-	if [[ -s $TMPDIR/pat.pid ]]
-	then
-		RUNNING_PID=$(cat $TMPDIR/pat.pid)
-		if grep -q "^$RUNNING_PID.*pat "
-		then
-			echo "Stopping pat PID=$(cat $TMPDIR/pat.pid)" | Sender 'pat'
-			kill $RUNNING_PID >/dev/null 2>&1
-		fi
-		rm -f $TMPDIR/pat.pid
-	fi 
-	local PAT_ARGS="${1:-'-l telnet'}"
-	local PAT="$(command -v pat) $PAT_ARGS http"
-	echo "Starting $PAT" | Sender 'pat'
-	($PAT 2>&1 | Sender "pat") &
-	local PAT_PID=$(pgrep -f "$PAT")
-	if [[ -n $PAT_PID ]] 
-	then
-		echo $PAT_PID > $TMPDIR/pat.pid
-		echo "pat started PID=$PAT_PID" | Sender 'pat'
-		return 0
-	else
-		rm -f $TMPDIR/pat.pid
-		echo "pat FAILED to start" | Sender 'pat'
-		return 1
-	fi
-}
+function makePatWebLauncher () {
+	cat > $TMPDIR/pat_web.sh <<EOF
+xdg-open http://localhost:$1 >/dev/null 2>&1
+EOF
 
-function restartApp () {
-	[[ -z "$1" ]] && return 1
-	local APP="$1"
-	local ARGS="${2:-''}"
-	local RUNNING_PID=''
-	if [[ -s $TMPDIR/${APP}.pid ]]
-	then
-		RUNNING_PID=$(cat $TMPDIR/${APP}.pid)
-		if (ps x | grep -q "^${RUNNING_PID}.*${APP} ")
-		then
-			echo "Stopping $APP PID=$RUNNING_PID" | Sender "$APP"
-			kill $RUNNING_PID >/dev/null 2>&1
-		fi
-	fi 
-	rm -f $TMPDIR/${APP}.pid
-	local CMD="$(command -v $APP) $ARGS"
-	echo "Starting $CMD" | Sender "$APP"
-	($CMD 2>&1 | Sender "$APP") &
-	sleep 1
-	#local PID=$(pgrep -f "$CMD")
-	local PID=$(pidof -- $CMD)
-	if [[ -n $PID ]] 
-	then
-		echo $PID > $TMPDIR/${APP}.pid
-		echo "$APP started PID=$PID" | Sender "$APP"
-		return 0
-	else
-		rm -f $TMPDIR/${APP}.pid
-		echo "${APP} FAILED to start" | Sender "$APP"
-		return 1
-	fi
 }
 
 #============================
 #  rigctl Functions
 #============================
 
+function loadRigctldSettings () {
+	if [ -s "$GUI_RIGCTLD_CONFIG_FILE" ]
+	then # There is a config file
+   	echo "$GUI_RIGCTLD_CONFIG_FILE found." | Sender "manager"
+	else # Set some default values (dummy rig) in a new config file
+   	echo "Config file $GUI_DIREWOLF_CONFIG_FILE not found. Creating one." | Sender "manager"
+		echo "RIGCTLD_CONFIG='-v -t $RIGCTLD_PORT -m 1'" > "$GUI_RIGCTLD_CONFIG_FILE"
+	fi
+	source "$GUI_RIGCTLD_CONFIG_FILE"
+	
+}
+
+function updateRigctldSettings () {
+	echo "$(grep RIGCTLD_ARGS $ARGS_CONFIG | sed -e 's/ARGS/CONFIG/')" > "$GUI_RIGCTLD_CONFIG_FILE"
+	source "$GUI_RIGCTLD_CONFIG_FILE"
+	echo "rigctld arguments updated" | Sender "manager"
+}
+
 function yadRigctl () {
-	RIGCTL_INFO=" \
+	local CURRENT="$(grep RIGCTLD_ARGS $ARGS_CONFIG | cut -d= -f2)"
+	local RIGCTL_INFO=" \
 The rig control daemon (rigctld) is part of Hamlib. It provides a way to control \
 various rigs using CAT commands, usually over a serial port.\n\nIn order to set up \
 aliases (shortcuts) in the pat web interface for RMS Gateway stations ALONG WITH \
@@ -807,7 +1063,7 @@ to talk to your radio and is running when you [re]start rigctld."
 	yad --plug="$ID" --tabnum=$1 --text-align=center --borders=20 --form --wrap \
 		--text="<big><big><b>Hamlib Rig Control (rigctld)</b></big></big>" \
 		--field="":TXT "$RIGCTL_INFO" \
-		--field="<b>Manage Hamlib rigctld</b>":FBTN "bash -c rigctl_gui.sh >/dev/null &" >/dev/null &
+		--field="<b>Manage Hamlib rigctld</b>":FBTN 'bash -c "rigctl_gui.sh $ARGS_CONFIG; updateRigctldSettings"' >/dev/null &
 	return $!
 }
 
@@ -824,8 +1080,10 @@ function yadManager () {
 	[[ ${STARTUP[_PAT_START_]} == TRUE ]] && TEXT+="\n<b>pat PORTS:</b> telnet=<span color='blue'><b>$PAT_TELNET_PORT</b></span> web=<span color='blue'><b>http://$HOSTNAME.local:$PAT_HTTP_PORT</b></span>"
 	MANAGER_TITLE="TNC and pat Manager $VERSION"
 	yad --title="$MANAGER_TITLE" --text="$TEXT" --show-uri --uri-handler="$URI_HANDLER" \
+		--use-interp \
   		--text-align="center" --notebook --key="$ID" \
   		--posx=$POSX --posy=$POSY \
+		--use-interp \
   		--buttons-layout=center \
   		--tab="Startup" \
   		--tab="AX25" \
@@ -833,14 +1091,13 @@ function yadManager () {
   		--tab="Direwolf" \
   		--tab="pat" \
   		--tab="Rig Control" \
-  		--button="<b>Stop &#x26; Exit</b>":1 \
-  		--button="<b>Save &#x26; Restart</b>":0 \
-  		--button="<b>Restart AX25</b>":"bash -c $TMPDIR/restart_ax25.sh" \
-  		--button="<b>Open pat Web interface</b>":"bash -c $TMPDIR/pat_web.sh" \
+  		--button="<b>Stop &#x26; Exit</b>"!!"Stop everything and exit":0 \
+  		--button="<b>TNC</b>"!!"Status/start/stop Direwolf+AX25":'startStop tnc' \
+  		--button="<b>PAT</b>"!!"Status/start/stop pat":'startStop pat' \
+  		--button="<b>ARDOP</b>"!!"Status/start/stop ARDOP":'startStop ardop' \
+  		--button="<b>PAT Web</b>"!!"Open PAT Web Interface":"bash -c $TMPDIR/pat_web.sh" \
   		--button="<b>Help</b>":"$click_help_cmd" &
 	return $!
-# 		--button="<b>Restart AX25</b>":"bash -c 'restartAX25 ${AX25[_PORT_]}'" \
-#  		--button="<b>Restart pat</b>":"bash -c 'restartAX25 ${AX25[_PORT_]}; restartPat \"${PAT_LISTENERS}\"'" \
 }
 
 #============================
@@ -863,19 +1120,33 @@ SCRIPT_DIR="$( cd $(dirname "$0") && pwd )" # script directory
 SCRIPT_FULLPATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 SCRIPT_ID="$(ScriptInfo | grep script_id | tr -s ' ' | cut -d' ' -f3)"
 SCRIPT_HEADSIZE=$(grep -sn "^# END_OF_HEADER" ${0} | head -1 | cut -f1 -d:)
-VERSION="$(ScriptInfo version | grep version | tr -s ' ' | cut -d' ' -f 4)" 
+VERSION="$(ScriptInfo version | grep version | tr -s ' ' | cut -d' ' -f 4)"
 
 TITLE="TNC and pat Manager $VERSION"
 CONFIG_DIR="$HOME/.config/nexus"
+TNC_DIR="$HOME/.config/tnc"
 GUI_STARTUP_CONFIG_FILE="$CONFIG_DIR/tnc_gui_startup.conf"
 GUI_DIREWOLF_CONFIG_FILE="$CONFIG_DIR/tnc_gui_direwolf.conf"
 GUI_ARDOP_CONFIG_FILE="$CONFIG_DIR/tnc_gui_ardop.conf"
 GUI_AX25_CONFIG_FILE="$CONFIG_DIR/tnc_gui_ax25.conf"
+GUI_RIGCTLD_CONFIG_FILE="$CONFIG_DIR/tnc_gui_rigctld.conf"
+GUI_PAT_CONFIG_FILE="$CONFIG_DIR/tnc_gui_pat.conf"
+DW_CONFIG="$TMPDIR/direwolf.conf"
 MESSAGE="Direwolf Configuration"
 
-ID="${RANDOM}"
+#ID="${RANDOM}"
+ID=$$
+export ARGS_CONFIG="$TMPDIR/args.conf"
+
 
 export SOCAT_PORT=3333
+VIRTUAL_COM_SPEED=38400
+VIRTUAL_COM_PORT="/tmp/vcom0"
+export VIRTUAL_COM="${VIRTUAL_COM_PORT}:$VIRTUAL_COM_SPEED"
+RIGCTLD_PORT=4532
+export RIGCTL_PTT_ON="5420310A"
+export RIGCTL_PTT_OFF="5420300A"
+
 # YAD Dialog Window settings
 POSX=20 
 POSY=50 
@@ -885,16 +1156,9 @@ AX25PORT="wl2k"
 AX25PORTFILE="/etc/ax25/axports"
 PAT_VERSION="$(pat version | cut -d' ' -f2)"
 [[ $PAT_VERSION =~ v0.1[01]. ]] && PAT_CONFIG="$HOME/.wl2k/config.json" || PAT_CONFIG="$HOME/.config/pat/config.json"
-VIRTUAL_COM_SPEED=38400
-VIRTUAL_COM_PORT="/tmp/vcom0"
-VIRTUAL_COM="${VIRTUAL_COM_PORT}:$VIRTUAL_COM_SPEED"
-RIGCTLD_PORT="4532"
-VIRTUAL_COM_SOCAT="socat pty,link=${VIRTUAL_COM_PORT},waitslave,b${VIRTUAL_COM_SPEED} tcp:localhost:${RIGCTLD_PORT},retry"
-RIGCTL_PTT_ON="5420310A"
-RIGCTL_PTT_OFF="5420300A"
-RIGCTLD_PORT=4532
 YAD_PIDs=()
 RETURN_CODE=0
+
 
 #============================
 #  PARSE OPTIONS WITH GETOPTS
@@ -999,14 +1263,40 @@ fi
 
 # Set up pat for rigctl network connection in config.json
 cat $PAT_CONFIG | jq \
-   '.hamlib_rigs += {"network": {"address": "localhost:4532", "network": "tcp"}}' | sponge $PAT_CONFIG
+   '.hamlib_rigs += {"rigctld": {"address": "localhost:4532", "network": "tcp"}}' | sponge $PAT_CONFIG
 # Add the network Hamlib rig to the ax25 and ardop sections
-cat $PAT_CONFIG | jq --arg R "network" '.ax25.rig = $R' | sponge $PAT_CONFIG
-cat $PAT_CONFIG | jq --arg R "network" '.ardop.rig = $R' | sponge $PAT_CONFIG
+cat $PAT_CONFIG | jq --arg R "rigctld" '.ax25.rig = $R' | sponge $PAT_CONFIG
+cat $PAT_CONFIG | jq --arg R "rigctld" '.ardop.rig = $R' | sponge $PAT_CONFIG
 
-export -f setAX25Defaults loadAX25Defaults editPatPassword restartAX25 restartApp waitForPTY setKISSParms Sender
-export load_ax25_defaults_cmd='@bash -c "setAX25Defaults; loadAX25Defaults"'
-export click_help_cmd='bash -c "xdg-open /usr/local/share/nexus/tnc_manager_help.html"'
+export AX25PORTFILE
+export PAT_CONFIG
+export DW_CONFIG
+export -f setAX25Defaults loadAX25Defaults updateAX25Settings updateAxports
+export -f updateARDOPSettings setARDOPDefaults loadARDOPDefaults
+export -f updateStartupSettings 
+export -f updateRigctldSettings
+export -f editPatPassword updatePatSettings 
+export -f setDirewolfDefaults loadDirewolfDefaults updateDirewolfSettings
+export -f makeDirewolfConfig
+export -f Sender restart startStop
+export -f argModify
+export click_help_cmd='xdg-open /usr/local/share/nexus/tnc_manager_help.html'
+export save_startup_settings_cmd='updateStartupSettings %1 %2 %3 %4'
+export load_ardop_defaults_cmd='@bash -c "loadARDOPDefaults"'
+export load_ax25_defaults_cmd='@bash -c "loadAX25Defaults"'
+export load_direwolf_defaults_cmd='@bash -c "loadDirewolfDefaults"'
+export save_ax25_settings_cmd='bash -c "updateAX25Settings %1 %2 %3 %4 %5; restart tnc; restart pat"'
+export save_ardop_settings_cmd='updateARDOPSettings %1 %2 %3 %4 %5; restart ardop'
+export save_direwolf_settings_cmd='updateDirewolfSettings %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12 %13; restart tnc; restart pat'
+export save_pat_settings_cmd='bash -c "updatePatSettings %1 %2 %4 %5 %6 %7 %8 %9 %10 %11 %12 %13 %14 %15 %16 %17; restart tnc; restart pat"'
+
+export GUI_STARTUP_CONFIG_FILE
+export GUI_DIREWOLF_CONFIG_FILE
+export GUI_ARDOP_CONFIG_FILE
+export GUI_AX25_CONFIG_FILE
+export GUI_RIGCTLD_CONFIG_FILE
+export GUI_PAT_CONFIG_FILE
+
 
 #============================
 #  MAIN SCRIPT
@@ -1023,40 +1313,35 @@ $SYNTAX && set -n
 # Run in debug mode, if set
 $DEBUG && set -x 
 
-while true
-do
-	# If this is the first time running this script, don't attempt to start until user configures
-	if [[ -s $PAT_CONFIG && -s $GUI_STARTUP_CONFIG_FILE && -s $GUI_ARDOP_CONFIG_FILE && -s $GUI_AX25_CONFIG_FILE && -s $GUI_DIREWOLF_CONFIG_FILE ]]
-	then # GUI Configuration files exist
-		if [[ $(jq -r ".mycall" $PAT_CONFIG) == "" ]]
-		then # pat config files present, but not configured
-			FIRST_RUN=true
-		else # pat config files present and configured
-			FIRST_RUN=false
-		fi
-	else # No configuration files exist
-		FIRST_RUN=true
-	fi
+MONITOR_PID=''
 
-	# Create restart script
-	echo "exit 0" > $TMPDIR/restart_ax25.sh
-	chmod +x $TMPDIR/restart_ax25.sh
-	YAD_PIDs=()
-	
-	# Kill any running processes and remove temporary config files
-	KillApps
-	DIREWOLF_PID=''
-#	PAT_PID=''
-	RIGCTLD_PID=$(pgrep rigctld)
-	PIARDOPC_PID=''
-	VIRTUAL_COM_PID=''
-	for F in DIREWOLF PAT ARDOP AX25 STARTUP
-	do
-		rm -f $TMPDIR/CONFIGURE_${F}.txt
-	done
-	
-	# Start monitor window
-	MONITOR_PID=''
+# If this is the first time running this script, don't attempt to start until 
+# user configures
+if [[ -s $PAT_CONFIG && -s $GUI_STARTUP_CONFIG_FILE && -s $GUI_ARDOP_CONFIG_FILE && -s $GUI_AX25_CONFIG_FILE && -s $GUI_DIREWOLF_CONFIG_FILE ]]	
+then # GUI Configuration files exist
+	if [[ $(jq -r ".mycall" $PAT_CONFIG) == "" ]]
+	then # pat config files present, but not configured
+		FIRST_RUN=true
+	else # pat config files present and configured
+		FIRST_RUN=false
+	fi
+else # No configuration files exist
+	FIRST_RUN=true
+fi
+
+cat > $ARGS_CONFIG <<EOF
+ID=$ID
+SOCAT_PORT=$SOCAT_PORT
+VIRTUAL_COM_SPEED=$VIRTUAL_COM_SPEED
+VIRTUAL_COM_PORT="$VIRTUAL_COM_PORT"
+RIGCTLD_PORT=$RIGCTLD_PORT
+EOF
+
+YAD_PIDs=()
+
+# Start monitor window
+if [[ -z $MONITOR_PID ]]
+then
 	MONITOR_TITLE="TNC and pat Monitor $VERSION"
 	lxterminal --geometry=80x20 -t "$MONITOR_TITLE" -e "socat -u udp-recv:$SOCAT_PORT,reuseaddr -" &
 	while [[ -z $MONITOR_PID ]]
@@ -1064,188 +1349,134 @@ do
 		MONITOR_PID=$(lsof -t -i udp:$SOCAT_PORT)
 		sleep 0.5
 	done
-	echo "Monitor window PID=$MONITOR_PID" | Sender "manager"
+	echo "Monitor PID=$MONITOR_PID" | Sender "manager"
+fi
 
-	# Load settings from configuration files
-	loadStartupSettings
-	loadAX25Settings
-	loadARDOPSettings
-	loadDirewolfSettings
-	loadPatSettings
+# Load settings from configuration files
+loadStartupSettings
+loadAX25Settings
+loadARDOPSettings
+loadDirewolfSettings
+loadPatSettings
+loadRigctldSettings
 
-	# Start rigctld.
-	if [[ -n $RIGCTLD_PID ]]
-	then
-		echo "rigctld already running." | Sender "manager"
-	else # Start rigctl as a dummy rig because we have no idea what rig is used.
-		echo "Starting rigctld using dummy rig..." | Sender "manager"
-		($(command -v rigctld) -m 1 2>&1 | Sender 'rigctld') &
-		RIGCTLD_PID=$(pgrep -f "$(command -v rigctld) -m 1")
-		echo "Done." | Sender "manager"
+# Start rigctld.
+#if systemctl --user is-active --quiet $(systemd-escape --template rigctld@.service "$ARGS_CONFIG") || pgrep -x rigctld >/dev/null
+if pgrep -fx "^.*$(command -v rigctld) $RIGCTLD_CONFIG"
+then
+	echo "rigctld $RIGCTLD_CONFIG already running." | Sender "manager"
+else
+	# Kill other instances of rigctld
+	systemctl --user stop rigctld@*
+	pkill "^$(command -v rigctld) .*"
+	#argModify RIGCTLD_ARGS=\"-v -t \$RIGCTLD_PORT -m 1\"
+	argModify RIGCTLD_ARGS=\"$RIGCTLD_CONFIG\"
+	restart rigctld
+fi
+
+if [[ $FIRST_RUN == true ]]
+then
+	echo -e "Configure TNC, pat, ARDOP in the GUI,\nthen click \"Save...\" button." | Sender "manager"
+else # Not a first run.  pat and Direwolf configured so start 'em
+	# Configure /etc/ax25/axports if necessary.  This is needed in order to allocate a PTY for pat.
+	updateAxports "${AX25[_PORT_]}" "${PAT_CALL}"		
+	argModify KISS_PORT=${DW[_KISSPORT_]}
+	[[ ${DW[_AUDIOSTATS_]} == 0 ]] && STATS="" || STATS="-a ${DW[_AUDIOSTATS_]}"
+	REGEX=' -c'
+	if [[ ${DW[_ARGS_]} =~ $REGEX ]]
+	then # User has specified a custom direwolf configuration file
+		DIREWOLF_ARGS="${DW[_ARGS_]}"
+	else # Configuration file created by this manager will be used
+		DIREWOLF_ARGS="${DW[_ARGS_]} -c $DW_CONFIG"
 	fi
-
-	if [[ $FIRST_RUN == true ]]
+	argModify DIREWOLF_ARGS=\"$DIREWOLF_ARGS\"
+	KISSPARMS_ARGS="-c 1 -p ${AX25[_PORT_]} -t ${AX25[_TXDELAY_]} -l ${AX25[_TXTAIL_]} -s ${AX25[_SLOTTIME_]} -r ${AX25[_PERSIST_]} -f n"
+	argModify KISSPARMS_ARGS=\"$KISSPARMS_ARGS\"
+	makeDirewolfConfig
+	if [[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]]
 	then
-		echo -e "Configure TNC and pat in the GUI,\nthen click \"Save...\" button." | Sender "manager"
-	else # Not a first run.  pat and Direwolf configured so start 'em
-		# Configure /etc/ax25/axports if necessary.  This is needed in order to allocate a PTY for pat.
-		if ! grep -q "^${AX25[_PORT_]}[[:space:]]*${PAT_CALL}" $AX25PORTFILE 2>/dev/null
-		then #$AX25PORT $MYCALL entry not found
-			# Remove existing lines with $AX25PORT and any empty lines if present
-			sudo sed -i -e "s/^${AX25[_PORT_]}[[:space:]].*$//g" -e '/^[[:space:]]*$/d' $AX25PORTFILE
-			# Add the entry for $MYCALL
-			echo "${AX25[_PORT_]}	$PAT_CALL	0	255	7	Winlink" | sudo tee --append $AX25PORTFILE >/dev/null
-		fi
+		echo -e "\nUsing Direwolf configuration in $DW_CONFIG:" | Sender "direwolf"
+		cat "$DW_CONFIG" | Sender "direwolf"
+		echo "Starting direwolf ${DIREWOLF_ARGS}" | Sender "direwolf"
+		restart tnc
+	fi
 		
-		if [[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]]
-		then
-			# Start Direwolf
-			echo -e "\nUsing Direwolf configuration in $DW_CONFIG:" | Sender "direwolf"
-			cat "$DW_CONFIG" | Sender "direwolf"
-			[[ ${DW[_AUDIOSTATS_]} == 0 ]] && STATS="" || STATS="-a ${DW[_AUDIOSTATS_]}"
-			DIREWOLF_ARGS="-p -t ${DW[_COLORS_]} -d u -c $DW_CONFIG $STATS"
-			TRIES=2
-			while (( $TRIES > 0 ))
-			do
-				restartApp direwolf "$DIREWOLF_ARGS" || Die "Direwolf FAILED to start"
-				waitForPTY && break || TRIES=$(( TRIES - 1 ))
-				echo "Trying again to start direwolf" | Sender "direwolf"
-			done 
-			(( $TRIES == 0 )) && Die "Direwolf failed to allocate a PTY! Aborting. Is ADEVICE set to your sound card?"
-			if restartAX25 ${AX25[_PORT_]}
-			then
-				# Set KISS parameters
-				KISSPARM_ARGS="-c 1 -p ${AX25[_PORT_]} -t ${AX25[_TXDELAY_]} -l ${AX25[_TXTAIL_]} -s ${AX25[_SLOTTIME_]} -r ${AX25[_PERSIST_]} -f n"
-				setKISSParms "$KISSPARM_ARGS" || Die "kissparms settings failed.  Aborting."
-			else
-				Die "kissattach failed.  Aborting."
-			fi
-		fi
-#[[ -s $TMPDIR/pat.pid ]] && kill \$(cat $TMPDIR/pat.pid) >/dev/null 2>&1
-
-		if [[ ${STARTUP[_ARDOP_START_]} == TRUE ]]
-		then
-			# Start ARDOP
-			PIADROPC_ARGUMENTS="${ARDOP[_PORT_]} ${ARDOP[_CAPTURE_]} ${ARDOP[_PLAYBACK_]}"
-			[[ -n ${ARDOP[_ARGUMENTS_]} ]] && PIADROPC_ARGUMENTS+=" ${ARDOP[_ARGUMENTS_]}"
-			[[ ${ARDOP[_PTT_]} =~ GPIO ]] && PIADROPC_ARGUMENTS+=" -g=${ARDOP[_PTT_]#* }"
-			if [[ ${ARDOP[_PTT_]} =~ rigctld ]]
-			then
-				if lsof -t -i tcp:$RIGCTLD_PORT 2>&1 >/dev/null
-				then
-					($VIRTUAL_COM_SOCAT 2>&1 | Sender "socat") &
-					VIRTUAL_COM_PID=$(pgrep -f "$VIRTUAL_COM_SOCAT")
-					if [[ -n $VIRTUAL_COM_SOCAT ]]
-					then
-						echo "Virtual serial port $VIRTUAL_COM_PORT created (PID=${VIRTUAL_COM_PID}) and connected to rigctld" | Sender "manager"
-						PIADROPC_ARGUMENTS+=" --cat=${VIRTUAL_COM} -k $RIGCTL_PTT_ON -u $RIGCTL_PTT_OFF"	
-					else
-						echo "ERROR! Virtual serial port $VIRTUAL_COM_PORT creation FAILED. ARDOP PTT disabled." | Sender "manager"
-					fi
-				else
-					# rigctld isn't running so no point in setting up virtual com port
-					echo "ERROR! rigctld not listening on $RIGCTLD_PORT. ARDOP PTT disabled." | Sender "manager"
-				fi
-			fi
-			restartApp piardopc "$PIADROPC_ARGUMENTS" || Die "piardopc FAILED to start.  Aborting." 
-		fi
-		
-		# Start pat
-		if [[ ${STARTUP[_PAT_START_]} == TRUE ]]
-		then
-			PAT_ARGS="-l telnet"
-			[[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]] && PAT_ARGS+=",ax25"
-			[[ ${STARTUP[_ARDOP_START_]} == TRUE ]] && PAT_ARGS+=",ardop"
-			PAT_ARGS+=" http"
-			restartApp pat "$PAT_ARGS"
-#			cat >> $TMPDIR/restart_ax25.sh <<EOF
-#restartApp pat "$PAT_ARGS"
-#EOF
-		fi
-
-		if [[ ${STARTUP[_DIREWOLF_START_]} == TRUE ]]
-		then	
-			cat > $TMPDIR/restart_ax25.sh <<EOF
-killall direwolf >/dev/null 2>&1
-rm -f /tmp/kisstnc
-restartApp direwolf "$DIREWOLF_ARGS"
-restartApp direwolf "$DIREWOLF_ARGS"
-waitForPTY
-restartAX25 ${AX25[_PORT_]}
-setKISSParms "$KISSPARM_ARGS"
-EOF
-		fi
-
-	fi 
-
-	# Startup tab 1
-	yadStartup 1
-	YAD_PIDs+=( $! )
-	
-	# AX25 tab 2
-	yadAX25 2 
-	YAD_PIDs+=( $! )
-	
-	# ARDOP tab 3
-	yadARDOP 3
-	YAD_PIDs+=( $! )
-	
-	# Direwolf tab 4 
-	yadDirewolf 4
-	YAD_PIDs+=( $! )
-
-	# pat tab 5
-	yadPat 5 
-	YAD_PIDs+=( $! )
-
-	# rigctld tab 6
-	yadRigctl 6
-	YAD_PIDs+=( $! )
-
-	if [[ -s $TMPDIR/pat.pid ]]
+	# Start ARDOP
+	PIARDOPC_ARGS="${ARDOP[_PORT_]} ${ARDOP[_CAPTURE_]} ${ARDOP[_PLAYBACK_]}"
+	[[ -n ${ARDOP[_ARGUMENTS_]} ]] && PIARDOPC_ARGS+=" ${ARDOP[_ARGUMENTS_]}"
+	[[ ${ARDOP[_PTT_]} =~ GPIO ]] && PIARDOPC_ARGS+=" -g=${ARDOP[_PTT_]#* }"
+	if [[ ${ARDOP[_PTT_]} =~ rigctld ]]
 	then
-		cat > $TMPDIR/pat_web.sh <<EOF
+		if lsof -t -i tcp:$RIGCTLD_PORT 2>&1 >/dev/null
+		then
+			PIARDOPC_ARGS+=" --cat=${VIRTUAL_COM} -k $RIGCTL_PTT_ON -u $RIGCTL_PTT_OFF"	
+		else
+			# rigctld isn't running so no point in setting up virtual com port
+			echo "ERROR! rigctld not listening on TCP $RIGCTLD_PORT. Rig type must be '4'. ARDOP PTT disabled." | Sender "manager"
+		fi
+	fi
+	argModify PIARDOPC_ARGS=\"$PIARDOPC_ARGS\"
+	[[ ${PIARDOPC_ARGS} =~ $RIGCTL_PTT_ON ]] && restart rigctldvcom
+	grep -q "^PIARDOPC_ARGS=.*--cat" $ARGS_CONFIG && restart rigctldvcom
+	if [[ ${STARTUP[_ARDOP_START_]} == TRUE ]]
+	then
+		restart ardop
+	fi
+		
+	# Start pat
+	if [[ ${STARTUP[_PAT_START_]} == TRUE ]]
+	then
+		restart pat
+	fi
+fi
+	
+# Startup tab 1
+yadStartup 1
+YAD_PIDs+=( $! )
+	
+# AX25 tab 2
+yadAX25 2 
+YAD_PIDs+=( $! )
+	
+# ARDOP tab 3
+yadARDOP 3
+YAD_PIDs+=( $! )
+	
+# Direwolf tab 4 
+yadDirewolf 4
+YAD_PIDs+=( $! )
+
+# pat tab 5
+yadPat 5 
+YAD_PIDs+=( $! )
+
+# rigctld tab 6
+yadRigctl 6
+YAD_PIDs+=( $! )
+
+# Make a pat web launcher script
+cat > $TMPDIR/pat_web.sh <<EOF
 xdg-open http://localhost:$PAT_HTTP_PORT >/dev/null 2>&1
 EOF
-	else
-		cat > $TMPDIR/pat_web.sh <<EOF
-yad --center --title="Error" --borders=20 --text "<b>pat is not running.\nNo web interface to open.</b>" --button="Close":0 --buttons-layout=center
-EOF
-	fi
-	chmod +x $TMPDIR/pat_web.sh
+chmod +x "$TMPDIR/pat_web.sh"
 
-	# Set up a yad notebook with the tabs.	
-	yadManager
-  	MANAGER_PID=$!
-  	echo "Manager started PID=$MANAGER_PID" | Sender "manager"
-  	WID=''
-  	while [[ -z $WID ]]
-	do
-		WID=$(xdotool search --name "$MANAGER_TITLE" 2>/dev/null)
-		sleep 0.5
-  	done
-	GEOM=$(xdotool getwindowgeometry $WID)
-	if [[ -n $GEOM ]]
-	then
-		POS=$(echo $GEOM | cut -d' ' -f4)
-		LOC=$(echo $GEOM | cut -d' ' -f8)
-		# Move monitor window so it doesn't sit under the manager window 	
-		wmctrl -F -r "$MONITOR_TITLE" -e "0,$((${POS%,*} + ${LOC%x*} + 2)),${POSY},-1,-1"
-	fi
-	wait $MANAGER_PID
-	RETURN_CODE=$?
-
-	case $RETURN_CODE in
-		0) # Read and handle the data from each yad tab instance
-			updateStartupSettings
-			updateAX25Settings
-			updateARDOPSettings
-			updateDirewolfSettings
-			updatePatSettings
-		;;
-		*) # User click Exit button or closed window. 
-			break
-			;;
-	esac
+# Set up a yad notebook with the tabs.	
+yadManager
+MANAGER_PID=$!
+echo "Manager started PID=$MANAGER_PID" | Sender "manager"
+WID=''
+while [[ -z $WID ]]
+do
+	WID=$(xdotool search --name "$MANAGER_TITLE" 2>/dev/null)
+	sleep 0.5
 done
+GEOM=$(xdotool getwindowgeometry $WID)
+if [[ -n $GEOM ]]
+then
+	POS=$(echo $GEOM | cut -d' ' -f4)
+	LOC=$(echo $GEOM | cut -d' ' -f8)
+	# Move monitor window so it doesn't sit under the manager window 	
+	wmctrl -F -r "$MONITOR_TITLE" -e "0,$((${POS%,*} + ${LOC%x*} + 2)),${POSY},-1,-1"
+fi
+wait $MANAGER_PID
 SafeExit 0

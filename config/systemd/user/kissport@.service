@@ -1,19 +1,26 @@
 [Unit]
-# Version 1.0.1
-Description=KISS /tmp/kisstnc%i to socat TCP port %i
+# Version 1.0.3
+Description=KISS to socat %I
 After=direwolf@%i.service
 PartOf=tnc@i.target
 
 [Service]
 Type=simple
-# unlink-close=1 is needed so that clients that happened to be connected
+# unlink-close=1 might be needed so that clients that happened to be connected
 # to the pty won't cause this service to not stop when requested.
-ExecStart=/usr/bin/socat -t 0 pty,raw,echo=0,link=/tmp/kisstnc%i,mode=666 TCP4:127.0.0.1:%i
+ExecStart=/usr/bin/bash -c 'source %I; \
+/usr/bin/socat -t 0 pty,raw,echo=0,link=/tmp/kisstnc$ID,mode=666 \
+TCP4:127.0.0.1:$KISS_PORT'
+
 # Wait for socat to create pty before declaring victory
-ExecStartPost=/bin/timeout 5 /bin/sh -c "while ! test -c /tmp/kisstnc%i; do sleep 0.1; done"
-ExecStopPost=-/usr/bin/bash -c "echo 'stopped.' | \
-/usr/bin/stdbuf -oL /usr/bin/ts '%%Y/%%m/%%d %%H:%%M:%%S kissport@%i' | \
-/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+ExecStartPost=/usr/bin/timeout 5 /usr/bin/bash -c 'source %I; \
+while ! test -c /tmp/kisstnc$ID; \
+do sleep 0.1; done'
+
+ExecStopPost=-/usr/bin/bash -c 'source %I; \
+echo "stopped." | \
+/usr/bin/stdbuf -oL /usr/bin/ts "%%Y/%%m/%%d %%H:%%M:%%S %p" | \
+/usr/bin/socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast'
 
 #[Install]
 #WantedBy=default.target

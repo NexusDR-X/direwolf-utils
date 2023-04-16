@@ -1,14 +1,34 @@
 #!/usr/bin/env bash
 #
-#
-VERSION="1.0.2"
+VERSION="2.0.0"
+CONFIG_DIR="$HOME/.config/nexus"
+mkdir -p "$CONFIG_DIR"
+GUI_DIREWOLF_CONFIG_FILE="$CONFIG_DIR/tnc_gui_direwolf.conf"
+cp -f direwolf-utils/*.html /usr/local/share/nexus
 sudo cp -f direwolf-utils/*.desktop /usr/local/share/applications/
 sudo cp -f direwolf-utils/*.sh /usr/local/bin/
 sudo cp -f direwolf-utils/etc/systemd/system/* /etc/systemd/system/
 sudo systemctl daemon-reload
-cp -f direwolf-utils/*.html /usr/local/share/nexus
 cp -f direwolf-utils/config/systemd/user/* $HOME/.config/systemd/user/
-mkdir -p $HOME/.config/tnc
 systemctl --user daemon-reload
-nexus-updater.sh piardop,direwolf,pat
+nexus-updater.sh piardop,direwolf,pat,rigctl-utils
+
+if [[ -s "$GUI_DIREWOLF_CONFIG_FILE" ]]
+then
+	# Remove no longer used array elements
+	sed -i -e '/_ARATE_/d' -e '/_AUDIOSTATS_/d' -e '/_COLORS_/d' "$GUI_DIREWOLF_CONFIG_FILE"
+	# Add new array elements with default values
+	if ! grep -q _ACHANNELS_ "$GUI_DIREWOLF_CONFIG_FILE"
+	then
+  		echo "DW[_ACHANNELS_]='1'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	fi
+	if ! grep -q _CHANNEL_ "$GUI_DIREWOLF_CONFIG_FILE"
+	then
+  		echo "DW[_CHANNEL_]='0'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	fi
+	if ! grep -q _ARGS_ "$GUI_DIREWOLF_CONFIG_FILE"
+	then
+  		echo "DW[_ARGS_]='-r 48000 -t 2 -d uo'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+	fi
+fi
 exit 0

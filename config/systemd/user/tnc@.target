@@ -1,6 +1,6 @@
 [Unit]
-# Version 1.0.0
-Description=TNC on port %I
+# Version 1.0.1
+Description=Direwolf and AX25 TNC %I
 Wants=direwolf@%i.service kissport@%i.service kissattach@%i.service
 
 

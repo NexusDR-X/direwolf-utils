@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>TNC Manager Help</title>
+<title>TNC and pat Manager Help</title>
 </head>
 <body>
 
-<h1>TNC Manager Help</h1>
+<h1>TNC and pat Manager Help</h1>
 <p>
-This program allows you to configure the Direwolf and ARDOP software TNCs as well as the pat Winlink client and monitor the output of these programs. Direwolf enables a pseudo terminal using AX.25 port 'wl2k' for the KISS protocol, which is required by pat as well as some other AX.25 programs. The AGW and KISS TCP ports are available to applications running on this Pi as well as over the network. This allows other hosts, like Windows PCs running RMS Express to use the Direwolf TNC running on this Pi. The AX.25 port 'wl2k' is available to other applications running on this Pi as well.
+This program allows you to configure the Direwolf and ARDOP software TNCs as well as the pat Winlink client and monitor the output of these programs. Direwolf's AGW and KISS TCP ports are available to applications running on this Pi as well as over the network. This allows other hosts, like Windows PCs running RMS Express, to use the Direwolf TNC running on this Pi. The AX.25 port defined in the AX25 pane is available to other applications running on this Pi as well.
+</p>
+<p>
+At the top of the window are the currently configured AGW and KISS TCP ports, the AX.25 port, pat's telnet port, and the URI to use to access (if pat is running) the pat web interface.
 </p>
 <p>
 The ARDOP TNC uses G8BPQ's <a href="https://www.cantab.net/users/john.wiseman/Documents/ARDOPC.html">piardopc</a>. The TNC Manager allows you to configure piardopc via a GUI. Once configured, the ARDOP TNC is available for use by pat or other programs, like ARIM or gARIM.
@@ -19,22 +22,30 @@ Upon starting, the Manager will open a terminal window that shows the output of 
 <h2>Table of Contents</h2>
 <a href="#mainbuttons">Buttons</a><br /><br />
 <a href="#startup">Startup tab</a><br /><br />
+<a href="#ax25">AX25 tab</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ax25timers">AX25 Timers (TX delay, TX tail, Persist, Slot time)</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#defaultax25timers">Load Default AX25 Timers button</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#savetimers">Save and Apply Settings button</a><br /><br />
 <a href="#ardop">ARDOP tab</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardopaudio">Audio Capture and Playback</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardopptt">PTT</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardopport">Port</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardoparguments">piardopc arguments</a><br /><br />
-<a href="#ax25">AX25 tab</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ax25timers">AX25 Timers (TX delay, TX tail, Persist, Slot time)</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#defaultax25timers">Load Default AX25 Timers button</a><br /><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ardoparguments">piardopc arguments</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#loadardopdefaults">Load Defaults</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#saveardopsettings">Save and Apply Settings</a><br /><br />
 <a href="#direwolftab">Direwolf tab</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#dwcall">Call Sign</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#adevice">Direwolf Capture/Playback ADEVICEs</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#arate">Direwolf ARATE</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ptt">Direwolf PTT</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#stats">Audio Stats interval</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#achannels">ACHANNELS</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#channel">CHANNEL</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ptt">PTT</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#modem">MODEM</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#agwport">AGW Port</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#agwport">KISS Port</a><br /><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#kissport">KISS Port</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cbeacons">CDIGIPEAT, CFILTER, CBEACON</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#arguments">Arguments</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#loaddirewolfdefaults">Load Defaults</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#savedirewolfsettings">Save and Apply Settings</a><br /><br />
 <a href="#monitor">pat tab</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patcall">Call Sign</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#password">Winlink Password</a><br />
@@ -44,12 +55,14 @@ Upon starting, the Manager will open a terminal window that shows the output of 
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#telnetpasswd">Telnet Service Password</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#beaconinterval">Packet Beacon Interval</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#beaconmessage">Packet Beacon Message</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patlisteners">AX25, Telnet and ARDOP Listeners</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopforcedarqbw">ARDOP Forced ARQ bandwidth</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopmaxarqbw">ARDOP Max ARQ bandwidth</a><br />	
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopbeaconinterval">ARDOP Beacon Interval</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopenablecwid">ARDOP: Enable CW ID</a><br />
 	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#patardopenableptt">ARDOP: pat controls PTT</a><br />
-	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#pataliases">Edit pat Connection Aliases button</a><br /><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#pataliases">Edit pat Connection Aliases button</a><br />
+	&nbsp;&nbsp;&nbsp;&nbsp;<a href="#savepatsettings">Save and Apply Settings</a><br /><br />
 <a href="#rigcontrol">Rig Control tab</a><br />
 <hr>
 <h2 id="mainbuttons">Buttons</h2>
@@ -58,29 +71,36 @@ Upon starting, the Manager will open a terminal window that shows the output of 
 This button has the same effect as closing the app by clicking X in the upper right corner. It stops all of the TNCs and pat and closes the program
 </p>
 
-<h3>Save & Restart</h3>
+<h3>TNC</h3>
 <p>
-This will save any changes you've made on any of the tabs and restart the TNCs and pat.
+Shows the status and provides controls to stop/start/restart the TNC (Direwolf and ZX25).
 </p>
 
-<h3>Restart AX25</h3>
+<h3>PAT</h3>
 <p>
-This will restart AX25 and Direwolf using the saved settings. This button is needed to get around a bug in the Linux kernel that prevents pat from connecting to another AX25 station more than once consecutively. If you successfully connect to a station and immediately want to connect to that same station again, click this button before you attempt to connect the second time. Otherwise, you'll likely see a "Unable to establish connection to remote: address already in use" message.
+Shows the status and provides controls to stop/start/restart pat.
 </p>
 
-<h3>Open pat Web Interface</h3>
+<h3>ARDOP</h3>
 <p>
-Opens the default browser and connects it to pat's web service.
+Shows the status and provides controls to stop/start/restart ARDOP (piardopc).
+</p>
+
+<h3>PAT Web</h3>
+<p>
+Opens the default browser and connects it to pat's web service. If pat is not running, the browser will display and error.
 </p>
 <a href="#top">Top</a>
 <hr>
 <h2 id="startup">Startup tab</h2>
 <p>
-This tab has settings that enable you to control the behavior of the Manager when it starts. The Autostart setting will automatically start the manager using the Nexus DR-X DIP switches. Selecting anything but 'disabled' will create a script that will run if the corresponding Nexus DR-X switches are in the ON position. This will launch the Manager automatically with the Pi reboots.
+This tab has settings that enable you to control the behavior of the Manager when it starts. The Autostart setting will automatically start the manager at bootup using the Nexus DR-X DIP switches. Selecting anything but 'disabled' will create a script that will run if the corresponding Nexus DR-X switches are in the ON position. This will launch the Manager automatically with the Pi reboots.
 </p>
-The other items allow you to customize which programs start automatically whenever the Manger starts.
 <p>
-This tab displays the output of the Direwolf and pat programs. At the top of the pane are the currently configured AGW and KISS TCP ports, the AX.25 port, pat's telnet port and if pat is running, the URI you use to access the pat web interface.
+The other items allow you to customize which programs start automatically whenever the Manger starts.
+</p>
+<p>
+Click the <b>Save Startup Settings</b> to save any changes made in this pane. Those changes will take effect the next time you start the Manager.
 </p>
 <a href="#top">Top</a>
 <hr>
@@ -90,7 +110,7 @@ This tab displays the output of the Direwolf and pat programs. At the top of the
 </p>
 <a href="#top">Top</a>
 <h3 id="ax25timers">AX25 Port</h3>
-The default AX25 port is "wl2k" and is stored in /etc/ax25/axports. Changing this value will change that file.
+The default AX25 port is <b>wl2k</b> and is stored in <code>/etc/ax25/axports</code>. Changing this value will change that file as well as update the pat configuration.
 </p>
 <a href="#top">Top</a>
 <h3>TX Delay</h3>
@@ -118,11 +138,20 @@ Slot Time is part of the <a href="https://en.wikipedia.org/wiki/Carrier-sense_mu
 Clicking this button restores the default values for TX Delay, TX Tail, Persist and Slot Time.
 </p>
 <a href="#top">Top</a>
+
+
+<h3 id="savetimers">Save and Apply Settings button</h3>
+<p>
+Click to save any changes made in this pane. Those changes will take effect immediately and Direwolf and AX25 will restart.
+</p>
+<a href="#top">Top</a>
 <hr>
+
 <h2 id="ardop">ARDOP tab</h2>
 <p>Configuration parameters for ARDOP.
 </p>
 <a href="#top">Top</a>
+
 <h3 id="ardopaudio">Audio Capture and Playback</h3>
 <p>
 Sound card interface for capture and playback specific to the Nexus DR-X + Fe-Pi sound card. 
@@ -161,29 +190,46 @@ Sound card interface for capture and playback specific to the Nexus DR-X + Fe-Pi
 If your rig has a built-in sound interface and the rig's USB cable is attached to the Pi, it should show up in the dropdown. For example, on ICOM 7100/7300 rigs, it shows up as <b>plughw:CARD=CODEC,DEV=0</b>. For those rigs, select that same device for both capture and playback.
 </p>
 <a href="#top">Top</a>
+
 <h3 id="ardopptt">PTT</h3>
 <p>
 <code>piardopc</code> has limited PTT options. <b>GPIO 12</b> and <b>GPIO 23</b> are available in the dropdown if your rig is connected to the left or right (respectively) data connector on the Nexus DR-X. Also available is the<b> Client handles PTT</b> option, where the program using ARDOP (pat, for example) actually controls PTT. ARDOP itself plays no role in controlling PTT in this case. The remaining option is <b>rigctld network</b>. If this option is selected, <code>piardopc</code> will use Hamlib's <code>rigctld</code> for PTT. <code>rigctld</code> can be set up to use Flrig, which makes it handy for remotely controlling other attributes of the radio, provided the rig is supported by Flrig. 
 </p>
 <a href="#top">Top</a>
+
 <h3 id="ardopport">Port</h3>
 <p>
 The TCP port on which the ARDOP TNC is listening. Client applications use the ARDOP TNC by connecting to this port. Default is <b>8515</b>.
 </p>
 <a href="#top">Top</a>
+
 <h3 id="ardoparguments">piardopc arguments</h3>
 <p>
 Optional arguments. Run <code>piardopc -h</code> in a Terminal for a description of the other arguments. Usually not needed. If you select <b>rigctld network</b> network for PTT, the Manager will add the appropriate arguments to <code>piardopc</code>. The default argument <code>--log=/dev/null</code> tells <code>piardopc</code> to not log to a local file. The same log data appears in the Monitor window. If you want to save the logged data, then remove this default value or change it to some other destination.
 </p>
 <a href="#top">Top</a>
+
+<h3 id="loadardopdefaults">Load Defaults</h3>
+<p>
+Click to reset the <b>Port</b> and <b>piardopc arguments</b> fields to default values.
+</p>
+<a href="#top">Top</a>
+
+<h3 id="saveardopsettings">Save and Apply Settings</h3>
+<p>
+Click to save any changes made in this pane. Those changes will take effect immediately and piardopc will restart.
+</p>
+<a href="#top">Top</a>
 <hr>
+
+
 <h2 id="direwolf">Direwolf tab</h2>
 <h3 id="dwcall">Call Sign</h3>
 <p>Your call sign with no SSID</p>
 <a href="#top">Top</a>
 <h3 id="adevice">Direwolf Capture/Playback ADEVICEs</h3>
 <p>
-Sound card interface for capture and playback specific to the Nexus DR-X + Fe-Pi sound card.
+Sound card interface for capture and playback specific to the Nexus DR-X + Fe-Pi sound card. Although the FePi is a sterio (in AND out) sound card, the devices below are defined in software to separate the left and right and capture and playback into separate virtual <i>mono</i> sound cards. If you use the the ADEVICES in the table below, then select 1 for the ACHANNEL as described in the next section. 
 </p>
 <table rules="all" style="border-color:DarkGray;border-width:1px;border-style:solid;">
 		<tr align="center">
@@ -219,39 +265,128 @@ Sound card interface for capture and playback specific to the Nexus DR-X + Fe-Pi
 If your rig has a built-in sound interface and the rig's USB cable is attached to the Pi, it should show up in the dropdown. For example, on ICOM 7100/7300 rigs, it shows up as <b>plughw:CARD=CODEC,DEV=0</b>. For those rigs, select that same device for both capture and playback.
 </p>
 <a href="#top">Top</a>
-<h3 id="arate">Direwolf ARATE</h3>
+<h3 id="achannels">ACHANNELS</h3>
 <p>
-Number of audio samples per second.  Depends on the capabilities of the sound card.  The Fe-Pi supports up to <code>96000</code>. Default is <code>96000</code>.
+The number of channels in the selected <b>ADEVICE</b> sound card. Stereo sound cards have 2 channels and mono sound cards have 1. However, if you are using the FePi settings described in the previous section (*-left, *-right), those are actually mono sound cards, so you should select 1. 
 </p>
 <a href="#top">Top</a>
-<h3 id="modem">Direwolf Modem</h3>
+<h3 id="channel">CHANNEL</h3>
 <p>
-Tells Direwolf which tones or modem to use. Default is <b>1200</b>, which uses AFSK tones of 1200 and 2200. This is the most common for packet. If you select <b>9600</b> (which enables the G3RUH modem), set the Direwolf ARATE to <code>96000</code>. The station you are connecting to must use the same modem and tones.
+Which of the channels to configure. For mono sound cards, this is always 0. For stereo sound cards, use 0 for the left channel and 1 for the right. 
 </p>
 <a href="#top">Top</a>
-<h3 id="ptt">Direwolf PTT</h3>
+<h3 id="ptt">PTT</h3>
 <p>
-The GPIO (BCM numbering) pin to use for Push To Talk.  Nexus DR-X is wired to use <b>GPIO 12</b> for the left radio and <b>GPIO 23</b> for the right radio. The other option is <b>RIG 2 localhost:4532</b>, which tells Direwolf to use <code>rigctl</code> to communicate with Hamlib's <code>rigctld</code> for PTT.
+The GPIO (BCM numbering) pin to use for Push To Talk.  Nexus DR-X is wired to use <b>GPIO 12</b> for the left radio and <b>GPIO 23</b> for the right radio. The other option is <b>RIG 2 localhost:4532</b>, which tells Direwolf to use <code>rigctl</code> to communicate with Hamlib's <code>rigctld</code> for PTT for radios that have CAT control.
+</p>
+<a href="#top">Top</a>
+<h3 id="modem">MODEM</h3>
+<p>
+Tells Direwolf which tones or modem to use. Default is <b>1200</b>, which uses AFSK tones of 1200 and 2200. This is the most common for packet. The station you are connecting to must use the same modem and tones.
 </p>
 <a href="#top">Top</a>
 
-<h3 id="stats">Audio Stats interval</h3>
-<p>
-Print Direwolf's audio statistics every <i>x</i> seconds.  Set to 0 to disable printing of statistics. Default is <code>0</code>.
-</p>
-<a href="#top">Top</a>
-
-<h3 id="stats">AGW Port</h3>
+<h3 id="agwport">AGW Port</h3>
 <p>
 Start Direwolf listening for AGW connections on the specified port. Programs such as Xastir can use AGW on the same host or via a network connection to access the Direwolf TNC.
 </p>
 <a href="#top">Top</a>
 
-<h3 id="stats">KISS Port</h3>
+<h3 id="kissport">KISS Port</h3>
 <p>
 Start Direwolf listening for KISS connections on the specified port. Programs such as RMS Express and others can use KISS to access the Direwolf TNC across a network or on the same host.
 </p>
 <a href="#top">Top</a>
+
+<h3 id="cbeacons">CDIGIPEAT, CFILTER, CBEACON</h3>
+<p>
+Add <code>0 0</code> in the <b>CDIGIPEAT</b> field to enable Direwolf's digipeater function. You can alos specify a <b>CFILTER</b> and a <b>CBEACON</b> (recommended if you enable <b>CDIGIPEAT</b>). The default values for this Manager are:
+
+<pre>
+CBEACON 0 0
+CBEACON delay=1 every=15 info="Nexus DR-X digipeater"
+</pre>
+<code>CFILTER</code> is blank (meaning no filter) by default.
+</p>
+<p>
+See the <a href="https://github.com/wb2osz/direwolf/tree/master/doc"> Direwolf documentation</a> for more details.
+</p>
+<a href="#top">Top</a>
+
+<h3 id="arguments">Arguments</h3>
+<p>
+Add any direwolf command line arguments here. You can specify your own <code>direwolf.conf</code> by adding <code>-c path-to-config-file</code> here. This will override any other settings you make in this pane, except for the Arguments field of course. Default arguments: <code>-r 48000 -t 2 -d uo</code>
+<pre>
+<code>
+Direwolf Arguments:
+    -c fname       Configuration file name.
+    -l logdir      Directory name for log files.  Use . for current.
+    -r n           Audio sample rate, per sec.
+    -n n           Number of audio channels, 1 or 2.
+    -b n           Bits per audio sample, 8 or 16.
+    -B n           Data rate in bits/sec for channel 0.  Standard values are 300, 1200, 2400, 4800, 9600.
+                     300 bps defaults to AFSK tones of 1600 & 1800.
+                     1200 bps uses AFSK tones of 1200 & 2200.
+                     2400 bps uses QPSK based on V.26 standard.
+                     4800 bps uses 8PSK based on V.27 standard.
+                     9600 bps and up uses K9NG/G3RUH standard.
+                     AIS for ship Automatic Identification System.
+                     EAS for Emergency Alert System (EAS) Specific Area Message Encoding (SAME).
+    -g             Force G3RUH modem regardless of speed.
+    -j             2400 bps QPSK compatible with direwolf <= 1.5.
+    -J             2400 bps QPSK compatible with MFJ-2400.
+    -P xxx         Modem Profiles.
+    -A             Convert AIS positions to APRS Object Reports.
+    -D n           Divide audio sample rate by n for channel 0.
+    -X n           1 to enable FX.25 transmit.
+    -d             Debug options:
+       a             a = AGWPE network protocol client.
+       k             k = KISS serial port or pseudo terminal client.
+       n             n = KISS network client.
+       u             u = Display non-ASCII text in hexadecimal.
+       p             p = dump Packets in hexadecimal.
+       g             g = GPS interface.
+       w             w = Waypoints for Position or Object Reports.
+       t             t = Tracker beacon.
+       o             o = output controls such as PTT and DCD.
+       i             i = IGate.
+       m             m = Monitor heard station list.
+       f             f = packet Filtering.
+       h             h = hamlib increase verbose level.
+       x             x = FX.25 increase verbose level.
+    -q             Quiet (suppress output) options:
+       h             h = Heard line with the audio level.
+       d             d = Decoding of APRS packets.
+       x             x = Silence FX.25 information.
+    -t n           Text colors.  0=disabled. 1=default.  2,3,4,... alternatives.
+                     Use 9 to test compatibility with your terminal.
+    -a n           Audio statistics interval in seconds.  0 to disable.
+    -p             Enable pseudo terminal for KISS protocol.
+    -x             Send Xmit level calibration tones.
+    -u             Print UTF-8 test string and exit.
+    -S             Print symbol tables and exit.
+    -T fmt         Time stamp format for sent and received frames.
+    -e ber         Receive Bit Error Rate (BER), e.g. 1e-5
+</code>
+</pre>
+
+See the <a href="https://github.com/wb2osz/direwolf/tree/master/doc"> Direwolf documentation</a> for more details.
+</p>
+<a href="#top">Top</a>
+<hr>
+
+<h3 id="loaddirewolfdefaults">Load Defaults</h3>
+<p>
+Click to reset the <b>Port</b> and <b>and piardopc arguments</b> fields to default values.
+</p>
+<a href="#top">Top</a>
+
+<h3 id="savedirewolfsettings">Save and Apply Settings</h3>
+<p>
+Click to save any changes made in this pane. Those changes will take effect immediately and Direwolf and AX25 will restart.
+</p>
+<a href="#top">Top</a>
+
 <hr>
 <h2 id="pattab">pat tab</h2>
 <p>Configuration parameters for the pat Winlink email application.</p>
@@ -262,7 +397,8 @@ Start Direwolf listening for KISS connections on the specified port. Programs su
 <a href="#top">Top</a>
 
 <h3 id="password">Winlink Password</h3>
-<p>Your Winlink password as registered with winlink.org</p>
+<p>Your Winlink password as registered with winlink.org. Click the <b>Edit password in visible text</b> button to make the password visible for easier editing.
+</p>
 <a href="#top">Top</a>
 
 <h3 id="grid">Location Code</h3>
@@ -270,7 +406,7 @@ Start Direwolf listening for KISS connections on the specified port. Programs su
 <a href="#top">Top</a>
 
 <h3 id="webport">Web Service Port</h3>
-<p>Port number pat uses to start it's web service. This allows you to access pat's web interface from a browser on this Pi or via a browser on a PC that is on the same network as this Pi.</p>
+<p>Port number pat uses to start its web service. This allows you to access pat's web interface from a browser on this Pi or via a browser on a PC that is on the same network as this Pi. Default is <b>8049</b>.</p>
 <a href="#top">Top</a>
 
 <h3 id="telnetport">Telnet Service Port</h3>
@@ -287,6 +423,12 @@ Start Direwolf listening for KISS connections on the specified port. Programs su
 
 <h3 id="beaconmessage">Packet Beacon Message</h3>
 <p>When pat is running, your radio will beacon an IDENT message periodically, so other hams know you are capable of P2P. This text will be sent as part of the beacon. Default is <b>Winlink P2P</b>.</p>
+<a href="#top">Top</a>
+
+<h3 id="patlisteners">AX25, Telnet and ARDOP Listeners</h3>
+<p>
+Check the boxes corresponding to the services you want pat to listen on. This will allow pat to receive incoming requests via AX25 (Winlink P2P, for example), Telnet and/or Ardop.
+</p>
 <a href="#top">Top</a>
 
 <h3 id="patardopforcedarqbw">ARDOP Forced ARQ Bandwidth</h3>
@@ -316,10 +458,17 @@ Clicking this button opens another program that allows you to manage the aliases
 <a href="#top">Top</a>
 <hr>
 
+<h3 id="savepatsettings">Save and Apply Settings</h3>
+<p>
+Click to save any changes made in this pane. Those changes will take effect immediately and pat will restart.
+</p>
+<a href="#top">Top</a>
+
 <h2 id="rigcontrol">Rig Control tab</h2>
 <p>
 pat uses Rig Control, which is part of <a href="https://github.com/Hamlib/Hamlib/wiki">Hamlib</a>. Pat uses Rig Control to QSY supported radios. It only implements the ability to change a supported rig's frequency, however. It does not implement any other rig control functions. This tab presents information about rig control and a button that when clicked opens a program that allows you to manage rig control.
 </p>
+<a href="#top">Top</a>
 
 </body>
 </html>

@@ -1,16 +1,15 @@
 [Unit]
-# Version 1.0.3
-Description=pat Winlink client at %I
-# Uncommenting the following the Requires= line will cause 
-# tnc@%i.target to stop when this pat service stops
-#Requires=tnc@%i.target
-Wants=tnc@%i.target
-After=tnc@%i.target
+# Version 1.0.0
+Description=rigctld virtual serial port %I
+Wants=rigctld@%i.service
+After=rigctld@%i.service
 
 [Service]
 Type=simple
+
 ExecStart=/usr/bin/bash -c 'source %I; \
-/usr/bin/pat $PAT_ARGS 2>&1 | \
+/usr/bin/socat pty,link=$VIRTUAL_COM_PORT,waitslave,b$VIRTUAL_COM_SPEED \
+tcp:localhost:$RIGCTLD_PORT,retry 2>&1 | \
 /usr/bin/stdbuf -oL /usr/bin/ts "%%Y/%%m/%%d %%H:%%M:%%S %p" | \
 /usr/bin/socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast'
 

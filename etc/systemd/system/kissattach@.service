@@ -1,23 +1,32 @@
 [Unit]
-# Version 1.0.1
-Description=kissattach to /tmp/kisstnc%i
+# Version 1.0.3
+Description=kissattach@%I
 
 [Service]
 Type=forking
-ExecStart=/bin/bash -c 'DEV=$(/usr/bin/realpath /tmp/kisstnc%i); \
-test -n $DEV && \
-(/usr/sbin/kissattach $DEV %i | \
-/usr/bin/stdbuf -oL ts "%%Y/%%m/%%d %%H:%%M:%%S kissattach@%i" | \
-/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast) || exit 1'
-# Set some reasonable defaults for kiss parameters
-ExecStartPost=-/bin/bash -c 'sudo /usr/sbin/kissparms -p %i -c 1 -t 200 -l 50 -s 64 -r 20 -f n'
 
-ExecStopPost=-/bin/bash -c 'CALL=$(/usr/bin/grep -v "^#" /etc/ax25/axports | grep "^%i" | /usr/bin/awk \'{ print $2 }\'); \
-AXINT=$(/usr/sbin/ifconfig -a | /usr/bin/grep -B3 "ax25 $CALL" | /usr/bin/grep "^ax" | /usr/bin/cut -d: -f 1); \
+ExecStart=/bin/bash -c 'source %I; \
+DEV=$(/usr/bin/realpath /tmp/kisstnc$ID); \
+[[ -n $DEV ]] && \
+(/usr/sbin/kissattach $DEV $AX25_PORT | \
+/usr/bin/stdbuf -oL ts "%%Y/%%m/%%d %%H:%%M:%%S %p" | \
+/usr/bin/socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast) || exit 1'
+
+# Set KISS parameters
+ExecStartPost=-/bin/bash -c 'source %I; sudo /usr/sbin/kissparms $KISSPARMS_ARGS'
+
+# Shut down ax25 network interface if necessary
+ExecStopPost=-/bin/bash -c 'source %I; \
+CALL=$(/usr/bin/grep -v "^#" /etc/ax25/axports | /usr/bin/grep "^$AX25_PORT" | \
+/usr/bin/awk \'{ print $2 }\'); \
+AXINT=$(/usr/sbin/ifconfig -a | /usr/bin/grep -B3 "ax25 $CALL" | \
+/usr/bin/grep "^ax" | /usr/bin/cut -d: -f 1); \
 test -n $AXINT && /usr/sbin/ifconfig $AXINT down'
-ExecStopPost=-/usr/bin/bash -c "echo 'stopped.' | \
-/usr/bin/stdbuf -oL /usr/bin/ts '%%Y/%%m/%%d %%H:%%M:%%S kissattach@%i' | \
-/usr/bin/socat - udp-sendto:127.255.255.255:3333,broadcast"
+
+ExecStopPost=-/usr/bin/bash -c 'source %I; \
+echo 'stopped.' | \
+/usr/bin/stdbuf -oL /usr/bin/ts "%%Y/%%m/%%d %%H:%%M:%%S %p" | \
+/usr/bin/socat - udp-sendto:127.255.255.255:$SOCAT_PORT,broadcast'
 
 #[Install]
 #WantedBy=multi-user.target
