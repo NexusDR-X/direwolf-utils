@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 2.3.2
+#-    version         ${SCRIPT_NAME} 2.3.4
 #-    author          Steve Magnuson, AG7GN
 #-    license         CC-BY-SA Creative Commons License
 #-    script_id       0
@@ -807,8 +807,8 @@ do
 	YAD_PIDs+=( $! )
 	#tail -F --pid=$MONITOR_YAD_PID -q -n 30 $LOGFILE 2>/dev/null | cat -v >&6 & 
 
-	#clearTextInfo 15m &
-   #clearTextInfo_PID=$!
+	clearTextInfo 15m &
+   clearTextInfo_PID=$!
    
 	if [[ $FIRST_RUN == true ]]
 	then
