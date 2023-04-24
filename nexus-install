@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-VERSION="2.0.0"
+VERSION="2.0.1"
 CONFIG_DIR="$HOME/.config/nexus"
 mkdir -p "$CONFIG_DIR"
 GUI_DIREWOLF_CONFIG_FILE="$CONFIG_DIR/tnc_gui_direwolf.conf"
@@ -9,6 +9,7 @@ sudo cp -f direwolf-utils/*.desktop /usr/local/share/applications/
 sudo cp -f direwolf-utils/*.sh /usr/local/bin/
 sudo cp -f direwolf-utils/etc/systemd/system/* /etc/systemd/system/
 sudo systemctl daemon-reload
+mkdir -p $HOME/.config/systemd/user
 cp -f direwolf-utils/config/systemd/user/* $HOME/.config/systemd/user/
 systemctl --user daemon-reload
 nexus-updater.sh piardop,direwolf,pat,rigctl-utils
