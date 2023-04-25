@@ -16,7 +16,7 @@
 #%
 #================================================================
 #- IMPLEMENTATION
-#-    version         ${SCRIPT_NAME} 2.0.3
+#-    version         ${SCRIPT_NAME} 2.0.5
 #-    author          Steve Magnuson, AG7GN
 #-    license         GPL 3.0
 #-    script_id       0
@@ -669,6 +669,19 @@ function loadDirewolfSettings () {
 
 	if [ -s "$GUI_DIREWOLF_CONFIG_FILE" ]
 	then # There is a config file
+		if ! grep -q _ACHANNELS_ "$GUI_DIREWOLF_CONFIG_FILE"
+		then
+  			echo "DW[_ACHANNELS_]='1'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+		fi
+		if ! grep -q _CHANNEL_ "$GUI_DIREWOLF_CONFIG_FILE"
+		then
+  			echo "DW[_CHANNEL_]='0'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+		fi
+		if ! grep -q _ARGS_ "$GUI_DIREWOLF_CONFIG_FILE"
+		then
+  			echo "DW[_ARGS_]='-r 48000 -t 2 -d uo'" >> "$GUI_DIREWOLF_CONFIG_FILE"
+		fi
+		sed -i -e '/_ARATE_/d' -e '/_AUDIOSTATS_/d' -e '/_COLORS_/d' "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "$GUI_DIREWOLF_CONFIG_FILE found." | Sender "manager"
 	else # Set some default values in a new config file
    	echo "Config file $GUI_DIREWOLF_CONFIG_FILE not found. Creating one." | Sender "manager"
@@ -688,7 +701,11 @@ function loadDirewolfSettings () {
    	echo "DW[_CBEACON_]='${DW_default[_CBEACON_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_ARGS_]='${DW_default[_ARGS_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
 	fi
-  	source "$GUI_DIREWOLF_CONFIG_FILE"
+	sed -i -e "s/^DW._ACHANNEL_.=''$/DW[_ACHANNELS_]='1'/" "$GUI_DIREWOLF_CONFIG_FILE" \
+	   -e "s/^DW._CHANNEL_.=''$/DW[_CHANNEL_]='0'/" "$GUI_DIREWOLF_CONFIG_FILE" \
+	   -e "s/^DW._ARGS_.=''$/DW[_ARGS_]='-r 48000 -t 2 -d uo'/" \
+	   "$GUI_DIREWOLF_CONFIG_FILE"
+	source "$GUI_DIREWOLF_CONFIG_FILE"
 	MODEMs="300!1200!2400!4800!9600"
 	ACHANNELSs="1!2"
 	[[ $ACHANNELSs =~ ${DW[_ACHANNELS_]} ]] && ACHANNELSs="$(echo "$ACHANNELSs" | sed "s/${DW[_ACHANNELS_]}/\^${DW[_ACHANNELS_]}/")"
