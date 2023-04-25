@@ -701,7 +701,7 @@ function loadDirewolfSettings () {
    	echo "DW[_CBEACON_]='${DW_default[_CBEACON_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
    	echo "DW[_ARGS_]='${DW_default[_ARGS_]}'" >> "$GUI_DIREWOLF_CONFIG_FILE"
 	fi
-	sed -i -e "s/^DW._ACHANNEL_.=''$/DW[_ACHANNELS_]='1'/" "$GUI_DIREWOLF_CONFIG_FILE" \
+	sed -i -e "s/^DW._ACHANNELS_.=''$/DW[_ACHANNELS_]='1'/" "$GUI_DIREWOLF_CONFIG_FILE" \
 	   -e "s/^DW._CHANNEL_.=''$/DW[_CHANNEL_]='0'/" "$GUI_DIREWOLF_CONFIG_FILE" \
 	   -e "s/^DW._ARGS_.=''$/DW[_ARGS_]='-r 48000 -t 2 -d uo'/" \
 	   "$GUI_DIREWOLF_CONFIG_FILE"
